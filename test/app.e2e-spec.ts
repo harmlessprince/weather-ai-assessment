@@ -16,6 +16,7 @@ import {
   SubscriptionStatus,
 } from '../src/subscriptions/subscription.entity';
 import { WeatherService } from '../src/weather';
+import { appCorsOptions } from '../src/config/cors.config';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -34,6 +35,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.enableCors(appCorsOptions);
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -129,6 +131,18 @@ describe('AppController (e2e)', () => {
       .post('/api/subscriptions/by-email')
       .send({ email: 'not-an-email' })
       .expect(400);
+  });
+
+  it('/api/subscriptions/by-email (OPTIONS) allows browser preflight from any origin', () => {
+    return request(app.getHttpServer())
+      .options('/api/subscriptions/by-email')
+      .set('Origin', 'https://taofeeq-weather-ai.netlify.app')
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type')
+      .expect(204)
+      .expect('Access-Control-Allow-Origin', '*')
+      .expect('Access-Control-Allow-Methods', /POST/)
+      .expect('Access-Control-Allow-Headers', /Content-Type/);
   });
 
   it('/api/subscriptions (GET) remains admin protected', () => {

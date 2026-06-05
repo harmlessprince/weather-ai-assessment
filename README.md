@@ -1,6 +1,6 @@
 # WeatherAI Alert Subscription Service
 
-WeatherAI Alert Subscription Service is a small alerting system for farmers managing weather risk across multiple farms or plots. A farmer can subscribe an email address to different farm locations, choose the alert types that matter for each location, and review alerts tied back to the subscription that triggered them.
+WeatherAI Alert Subscription Service is a small alerting system for farmers managing weather risk across multiple farms or plots of land. A farmer can subscribe an email address to different farm locations, choose the alert types that matter for each location, and review alerts tied back to the subscription that triggered them.
 
 The backend integrates with WeatherAI forecast data, normalizes raw weather fields into alert signals, evaluates those signals against configurable rules, suppresses duplicate alerts, persists alert history, and delivers or logs notifications. The implementation is intentionally compact, but it shows the parts that matter for a real alerting workflow: API consumption, quota-aware polling, deduplication, durable records, and a delivery boundary that can later support stronger notification channels.
 
@@ -27,13 +27,13 @@ The same workflow is available through the API examples below. The client is onl
 
 1. A farmer subscribes an email address to one or more farm locations.
 2. Each farm subscription can track its own alert types, such as heavy rain, frost, storm, heat, or wind.
-3. The app polls WeatherAI forecast data for active subscription locations.
+3. The backend polls WeatherAI forecast data for active subscription locations.
 4. The forecast response is normalized into a provider-neutral signal format.
 5. The alert engine checks each signal against configurable thresholds.
 6. The strongest alert per alert type is selected for the poll cycle.
 7. Duplicate alerts are suppressed with fingerprints and cooldown windows.
 8. Alerts are persisted in SQLite and linked back to the subscription that triggered them.
-9. Email delivery is attempted when SMTP is enabled; otherwise the alert is logged for demo safety.
+9. Email delivery is attempted when SMTP (EMAIL_DELIVERY_ENABLED) is enabled; otherwise the alert is logged for demo safety.
 
 Supported alert types:
 
