@@ -36,7 +36,6 @@ WeatherAI's free plan has useful forecast access, but it does not include every 
 |---|---|
 | Free plan gives 1,000 API calls per month | Poll conservatively and cap demo subscriptions |
 | SMS/USSD alerts are not available on the free plan | Use email through a swappable `NotificationService` boundary |
-| WeatherAI platform webhooks are not available on the free plan | Own the polling and alert evaluation loop in this backend |
 | AI insights and 14-day forecast are Pro+ features | Use `/v1/forecast` with `ai=false` and derive simple alert summaries locally |
 | Polling can rediscover the same bad weather window | Store alert fingerprints and apply a cooldown before dispatch |
 
@@ -261,17 +260,12 @@ curl "$BASE_URL/api/subscriptions" \
   -H "Authorization: Bearer $ADMIN_API_KEY"
 ```
 
-### Simulate a webhook-style alert evaluation
+### Manually poll one subscription
 
-This endpoint exists because real WeatherAI platform webhooks are not available on the free plan. It evaluates active subscriptions at the provided coordinates, persists matching alerts, and marks them as logged.
+Replace `<subscription_id>` with the `id` returned from create. This triggers the same alert evaluation and notification/logging flow used by the scheduler.
 
 ```bash
-curl -X POST "$BASE_URL/api/webhook/simulate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "lat": -1.286,
-    "lon": 36.817
-  }'
+curl -X POST "$BASE_URL/api/subscriptions/<subscription_id>/poll"
 ```
 
 ### List alert history as admin
@@ -384,7 +378,6 @@ If this were expanded beyond the assessment, the next steps would be:
 - Group subscriptions by coordinate so one WeatherAI call can serve many subscribers in the same location.
 - Add retry/backoff for transient WeatherAI and SMTP failures.
 - Add a queue for notification delivery.
-- Add HMAC verification if WeatherAI platform webhooks become available.
 - Add SMS/USSD delivery behind the existing notification boundary once the account has the required WeatherAI plan and approvals.
 - Add a small admin dashboard for reviewing subscriptions, alert history, and quota usage.
 

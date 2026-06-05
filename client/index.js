@@ -284,6 +284,9 @@ function renderSubscriptions(subscriptions) {
               <p class="meta">${subscription.latitude}, ${subscription.longitude}</p>
             </div>
             <div class="button-row">
+              <button class="secondary" type="button" data-poll-id="${subscription.id}" data-poll-label="${escapeHtml(subscription.locationLabel)}">
+                Poll now
+              </button>
               <button class="secondary" type="button" data-alert-id="${subscription.id}" data-alert-label="${escapeHtml(subscription.locationLabel)}">
                 View alerts
               </button>
@@ -298,10 +301,17 @@ function renderSubscriptions(subscriptions) {
               .join('')}
           </div>
           <p class="tiny">Created ${formatDate(subscription.createdAt)}</p>
+          <p class="tiny">Last polled ${formatDate(subscription.lastPolledAt)}</p>
         </article>
       `,
     )
     .join('');
+
+  elements.subscriptionsList.querySelectorAll('[data-poll-id]').forEach((button) => {
+    button.addEventListener('click', () =>
+      pollSubscription(button.dataset.pollId, button.dataset.pollLabel, button),
+    );
+  });
 
   elements.subscriptionsList.querySelectorAll('[data-delete-id]').forEach((button) => {
     button.addEventListener('click', () => deleteSubscription(button.dataset.deleteId));
@@ -312,6 +322,38 @@ function renderSubscriptions(subscriptions) {
       loadSubscriptionAlerts(button.dataset.alertId, button.dataset.alertLabel),
     );
   });
+}
+
+async function pollSubscription(id, label, button) {
+  button.disabled = true;
+  showStatus(elements.listStatus, `Polling ${label || 'subscription'} now...`, 'info');
+
+  try {
+    const result = await apiFetch(
+      `/api/subscriptions/${encodeURIComponent(id)}/poll`,
+      {
+        method: 'POST',
+      },
+    );
+    const alertCount = result.alertsSentOrLogged || 0;
+    const suppressedCount = (result.suppressed || []).length;
+
+    if (state.selectedSubscriptionId === id) {
+      await loadSubscriptionAlerts(id, label);
+    } else {
+      await loadSubscriptions();
+    }
+
+    showStatus(
+      elements.listStatus,
+      `Poll complete: ${alertCount} alert${alertCount === 1 ? '' : 's'} sent or logged, ${suppressedCount} suppressed.`,
+      'success',
+    );
+  } catch (error) {
+    showStatus(elements.listStatus, error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function deleteSubscription(id) {

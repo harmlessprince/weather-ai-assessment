@@ -15,11 +15,13 @@ import {
   Subscription,
   SubscriptionStatus,
 } from '../src/subscriptions/subscription.entity';
+import { WeatherService } from '../src/weather';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
   let subscriptionRepository: Repository<Subscription>;
   let alertRepository: Repository<WeatherAlert>;
+  let weatherService: WeatherService;
 
   beforeEach(async () => {
     process.env.NODE_ENV = 'test';
@@ -45,11 +47,13 @@ describe('AppController (e2e)', () => {
     alertRepository = moduleFixture.get<Repository<WeatherAlert>>(
       getRepositoryToken(WeatherAlert),
     );
+    weatherService = moduleFixture.get(WeatherService);
     await alertRepository.clear();
     await subscriptionRepository.clear();
   });
 
   afterEach(async () => {
+    jest.restoreAllMocks();
     await app.close();
   });
 
@@ -206,5 +210,91 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/api/subscriptions/00000000-0000-4000-8000-000000000000/alerts')
       .expect(404);
+  });
+
+  it('/api/subscriptions/:id/poll (POST) returns 404 for an unknown subscription', () => {
+    return request(app.getHttpServer())
+      .post('/api/subscriptions/00000000-0000-4000-8000-000000000000/poll')
+      .expect(404);
+  });
+
+  it('/api/subscriptions/:id/poll (POST) polls one subscription and saves matching alerts', async () => {
+    const [lagos, abuja] = await subscriptionRepository.save([
+      subscriptionRepository.create({
+        email: 'demo@example.com',
+        locationLabel: 'Lagos',
+        latitude: 6.5244,
+        longitude: 3.3792,
+        alertTypes: [AlertType.HeavyRain],
+        status: SubscriptionStatus.Active,
+      }),
+      subscriptionRepository.create({
+        email: 'demo@example.com',
+        locationLabel: 'Abuja',
+        latitude: 9.0765,
+        longitude: 7.3986,
+        alertTypes: [AlertType.HeavyRain],
+        status: SubscriptionStatus.Active,
+      }),
+    ]);
+
+    jest.spyOn(weatherService, 'getForecastSignals').mockResolvedValue({
+      signals: [
+        {
+          source: 'daily',
+          windowStart: '2026-06-06',
+          precipitationMm: 40,
+          precipitationProbability: 90,
+        },
+      ],
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/subscriptions/${lagos.id}/poll`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(
+          expect.objectContaining({
+            subscriptionId: lagos.id,
+            alertsSentOrLogged: 1,
+            suppressed: [],
+          }),
+        );
+        expect(body.alerts).toHaveLength(1);
+        expect(body.alerts[0]).toEqual(
+          expect.objectContaining({
+            subscriptionId: lagos.id,
+            alertType: AlertType.HeavyRain,
+            locationLabel: 'Lagos',
+            deliveryStatus: AlertDeliveryStatus.Logged,
+          }),
+        );
+      });
+
+    expect(weatherService.getForecastSignals).toHaveBeenCalledTimes(1);
+    expect(weatherService.getForecastSignals).toHaveBeenCalledWith({
+      lat: lagos.latitude,
+      lon: lagos.longitude,
+    });
+
+    const alerts = await alertRepository.find({
+      order: { locationLabel: 'ASC' },
+    });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toEqual(
+      expect.objectContaining({
+        subscriptionId: lagos.id,
+        locationLabel: 'Lagos',
+      }),
+    );
+
+    const reloadedLagos = await subscriptionRepository.findOneByOrFail({
+      id: lagos.id,
+    });
+    const reloadedAbuja = await subscriptionRepository.findOneByOrFail({
+      id: abuja.id,
+    });
+    expect(reloadedLagos.lastPolledAt).toBeInstanceOf(Date);
+    expect(reloadedAbuja.lastPolledAt).toBeNull();
   });
 });

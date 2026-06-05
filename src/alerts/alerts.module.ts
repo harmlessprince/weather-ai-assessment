@@ -7,7 +7,6 @@ import { SubscriptionsModule } from '../subscriptions';
 import { WeatherModule } from '../weather';
 import { AlertEvaluatorService } from './alert-evaluator.service';
 import { AlertsController } from './alerts.controller';
-import { WebhookSimulationController } from './webhook-simulation.controller';
 import { WeatherAlert } from './weather-alert.entity';
 
 /**
@@ -23,7 +22,7 @@ import { WeatherAlert } from './weather-alert.entity';
     SubscriptionsModule,
     WeatherModule,
   ],
-  controllers: [AlertsController, WebhookSimulationController],
+  controllers: [AlertsController],
   providers: [AlertEvaluatorService, AdminApiKeyGuard],
   exports: [AlertEvaluatorService],
 })

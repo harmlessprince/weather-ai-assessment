@@ -6,6 +6,7 @@ import appConfig from '../config/app.config';
 import { NotificationsModule } from '../notifications';
 import { SubscriptionsModule } from '../subscriptions';
 import { WeatherModule } from '../weather';
+import { ManualPollingController } from './manual-polling.controller';
 import { SchedulerService } from './scheduler.service';
 
 @Module({
@@ -17,6 +18,7 @@ import { SchedulerService } from './scheduler.service';
     SubscriptionsModule,
     WeatherModule,
   ],
+  controllers: [ManualPollingController],
   providers: [SchedulerService],
   exports: [SchedulerService],
 })

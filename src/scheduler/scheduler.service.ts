@@ -7,13 +7,24 @@ import {
 } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { AlertEvaluatorService } from '../alerts';
+import {
+  AlertEvaluatorService,
+  type AlertSuppression,
+  WeatherAlert,
+} from '../alerts';
 import appConfig from '../config/app.config';
 import { NotificationService } from '../notifications';
-import { SubscriptionsService } from '../subscriptions';
+import { Subscription, SubscriptionsService } from '../subscriptions';
 import { WeatherService } from '../weather';
 
 const ALERT_POLL_INTERVAL_NAME = 'weather-alert-polling';
+
+type ManualPollResult = {
+  subscriptionId: string;
+  alertsSentOrLogged: number;
+  suppressed: AlertSuppression[];
+  alerts: WeatherAlert[];
+};
 
 @Injectable()
 export class SchedulerService
@@ -83,34 +94,11 @@ export class SchedulerService
 
     try {
       const subscriptions = await this.subscriptionsService.findActive();
-      let alertsSentOrLogged = 0;
-      let suppressed = 0;
+      const results: ManualPollResult[] = [];
 
       for (const subscription of subscriptions) {
         try {
-          const forecast = await this.weatherService.getForecastSignals({
-            lat: subscription.latitude,
-            lon: subscription.longitude,
-          });
-          const result = await this.alertEvaluatorService.evaluateNewAlerts(
-            subscription,
-            forecast,
-            now,
-          );
-
-          suppressed += result.suppressed.length;
-
-          for (const alert of result.alerts) {
-            await this.notificationService.dispatchAlert(
-              alert,
-              subscription,
-              now,
-            );
-            await this.alertEvaluatorService.saveAlert(alert);
-            alertsSentOrLogged += 1;
-          }
-
-          await this.subscriptionsService.markPolled(subscription, now);
+          results.push(await this.pollSubscriptionRecord(subscription, now));
         } catch (error) {
           this.logger.error(error);
           console.log(error);
@@ -121,6 +109,15 @@ export class SchedulerService
           );
         }
       }
+
+      const alertsSentOrLogged = results.reduce(
+        (total, result) => total + result.alertsSentOrLogged,
+        0,
+      );
+      const suppressed = results.reduce(
+        (total, result) => total + result.suppressed.length,
+        0,
+      );
 
       this.logger.log(
         `Alert polling complete: subscriptions=${subscriptions.length}, alerts=${alertsSentOrLogged}, suppressed=${suppressed}`,
@@ -134,6 +131,45 @@ export class SchedulerService
     } finally {
       this.isPolling = false;
     }
+  }
+
+  async pollSubscription(
+    id: string,
+    now = new Date(),
+  ): Promise<ManualPollResult> {
+    const subscription = await this.subscriptionsService.findOne(id);
+
+    return this.pollSubscriptionRecord(subscription, now);
+  }
+
+  private async pollSubscriptionRecord(
+    subscription: Subscription,
+    now: Date,
+  ): Promise<ManualPollResult> {
+    const forecast = await this.weatherService.getForecastSignals({
+      lat: subscription.latitude,
+      lon: subscription.longitude,
+    });
+    const result = await this.alertEvaluatorService.evaluateNewAlerts(
+      subscription,
+      forecast,
+      now,
+    );
+    const alerts: WeatherAlert[] = [];
+
+    for (const alert of result.alerts) {
+      await this.notificationService.dispatchAlert(alert, subscription, now);
+      alerts.push(await this.alertEvaluatorService.saveAlert(alert));
+    }
+
+    await this.subscriptionsService.markPolled(subscription, now);
+
+    return {
+      subscriptionId: subscription.id,
+      alertsSentOrLogged: alerts.length,
+      suppressed: result.suppressed,
+      alerts,
+    };
   }
 
   private describeError(error: unknown): string {
