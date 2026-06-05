@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 import {
   AlertDeliveryStatus,
   AlertSeverity,
@@ -12,10 +12,7 @@ import {
 import { NotificationService } from './notification.service';
 
 jest.mock('nodemailer', () => ({
-  __esModule: true,
-  default: {
-    createTransport: jest.fn(),
-  },
+  createTransport: jest.fn(),
 }));
 
 const subscription = {
