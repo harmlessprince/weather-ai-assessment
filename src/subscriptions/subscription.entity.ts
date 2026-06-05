@@ -38,6 +38,22 @@ export class Subscription {
   @Column({ name: 'location_label', type: 'varchar', length: 160 })
   locationLabel: string;
 
+  @Column({
+    name: 'location_timezone',
+    type: 'varchar',
+    length: 80,
+    nullable: true,
+  })
+  locationTimezone?: string | null;
+
+  @Column({
+    name: 'location_country',
+    type: 'varchar',
+    length: 80,
+    nullable: true,
+  })
+  locationCountry?: string | null;
+
   @Column({ type: 'real' })
   latitude: number;
 

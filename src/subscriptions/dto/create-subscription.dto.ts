@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsLatitude,
   IsLongitude,
+  IsOptional,
   IsString,
   MaxLength,
   ValidateNested,
@@ -22,6 +23,16 @@ class SubscriptionLocationDto {
   @IsString()
   @MaxLength(160)
   label: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  timezone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  country?: string;
 }
 
 export class CreateSubscriptionDto {

@@ -53,6 +53,8 @@ export class SubscriptionsService {
     const subscription = this.subscriptionRepository.create({
       email: dto.email.toLowerCase(),
       locationLabel: dto.location.label,
+      locationTimezone: this.optionalText(dto.location.timezone),
+      locationCountry: this.optionalText(dto.location.country),
       latitude: dto.location.lat,
       longitude: dto.location.lon,
       alertTypes: this.normalizeAlertTypes(dto.alerts),
@@ -150,6 +152,12 @@ export class SubscriptionsService {
     }
 
     return [...new Set(normalized)];
+  }
+
+  private optionalText(value?: string): string | null {
+    const trimmed = value?.trim();
+
+    return trimmed || null;
   }
 
   private isUniqueConstraintError(error: unknown): boolean {

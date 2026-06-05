@@ -26,6 +26,8 @@ const state = {
   currentWeatherTimer: null,
   currentWeatherRequestId: 0,
   lastCurrentWeatherKey: '',
+  providerLocation: null,
+  providerLocationKey: '',
 };
 
 const elements = {
@@ -74,7 +76,11 @@ function bindEvents() {
     const email = elements.email.value.trim().toLowerCase();
 
     if (!email) {
-      showStatus(elements.emailStatus, 'Enter an email address first.', 'error');
+      showStatus(
+        elements.emailStatus,
+        'Enter an email address first.',
+        'error',
+      );
       return;
     }
 
@@ -223,6 +229,7 @@ function buildSubscriptionPayload() {
   const coordinateError = validateCoordinates();
   const label = elements.label.value.trim();
   const alerts = selectedAlerts();
+  const providerLocation = providerLocationForCoordinates(lat, lon);
 
   if (coordinateError) {
     showStatus(elements.subscriptionStatus, coordinateError, 'error');
@@ -235,20 +242,34 @@ function buildSubscriptionPayload() {
   }
 
   if (alerts.length === 0) {
-    showStatus(elements.subscriptionStatus, 'Select at least one alert type.', 'error');
+    showStatus(
+      elements.subscriptionStatus,
+      'Select at least one alert type.',
+      'error',
+    );
     return null;
   }
 
   return {
     email: state.email,
-    location: { lat, lon, label },
+    location: {
+      lat,
+      lon,
+      label,
+      timezone: providerLocation?.timezone,
+      country: providerLocation?.country,
+    },
     alerts,
   };
 }
 
 async function loadSubscriptions() {
   if (!state.email) {
-    showStatus(elements.listStatus, 'Enter an email to load subscriptions.', 'warning');
+    showStatus(
+      elements.listStatus,
+      'Enter an email to load subscriptions.',
+      'warning',
+    );
     return;
   }
 
@@ -286,13 +307,15 @@ async function loadSubscriptions() {
 
 function renderSubscriptions(subscriptions) {
   elements.subscriptionsList.innerHTML = subscriptions
-    .map(
-      (subscription) => `
+    .map((subscription) => {
+      const locationDetails = subscriptionLocationDetails(subscription);
+
+      return `
         <article class="subscription ${subscription.id === state.selectedSubscriptionId ? 'is-selected' : ''}">
           <div class="subscription-top">
             <div>
               <h3>${escapeHtml(subscription.locationLabel)}</h3>
-              <p class="meta">${subscription.latitude}, ${subscription.longitude}</p>
+              <p class="meta">${escapeHtml(locationDetails)}</p>
             </div>
             <div class="button-row">
               <button class="secondary" type="button" data-poll-id="${subscription.id}" data-poll-label="${escapeHtml(subscription.locationLabel)}">
@@ -308,36 +331,57 @@ function renderSubscriptions(subscriptions) {
           </div>
           <div class="tags">
             ${(subscription.alertTypes || [])
-              .map((type) => `<span class="tag">${formatAlertType(type)}</span>`)
+              .map(
+                (type) => `<span class="tag">${formatAlertType(type)}</span>`,
+              )
               .join('')}
           </div>
           <p class="tiny">Created ${formatDate(subscription.createdAt)}</p>
           <p class="tiny">Last polled ${formatDate(subscription.lastPolledAt)}</p>
         </article>
-      `,
-    )
+      `;
+    })
     .join('');
 
-  elements.subscriptionsList.querySelectorAll('[data-poll-id]').forEach((button) => {
-    button.addEventListener('click', () =>
-      pollSubscription(button.dataset.pollId, button.dataset.pollLabel, button),
-    );
-  });
+  elements.subscriptionsList
+    .querySelectorAll('[data-poll-id]')
+    .forEach((button) => {
+      button.addEventListener('click', () =>
+        pollSubscription(
+          button.dataset.pollId,
+          button.dataset.pollLabel,
+          button,
+        ),
+      );
+    });
 
-  elements.subscriptionsList.querySelectorAll('[data-delete-id]').forEach((button) => {
-    button.addEventListener('click', () => deleteSubscription(button.dataset.deleteId));
-  });
+  elements.subscriptionsList
+    .querySelectorAll('[data-delete-id]')
+    .forEach((button) => {
+      button.addEventListener('click', () =>
+        deleteSubscription(button.dataset.deleteId),
+      );
+    });
 
-  elements.subscriptionsList.querySelectorAll('[data-alert-id]').forEach((button) => {
-    button.addEventListener('click', () =>
-      loadSubscriptionAlerts(button.dataset.alertId, button.dataset.alertLabel),
-    );
-  });
+  elements.subscriptionsList
+    .querySelectorAll('[data-alert-id]')
+    .forEach((button) => {
+      button.addEventListener('click', () =>
+        loadSubscriptionAlerts(
+          button.dataset.alertId,
+          button.dataset.alertLabel,
+        ),
+      );
+    });
 }
 
 async function pollSubscription(id, label, button) {
   button.disabled = true;
-  showStatus(elements.listStatus, `Polling ${label || 'subscription'} now...`, 'info');
+  showStatus(
+    elements.listStatus,
+    `Polling ${label || 'subscription'} now...`,
+    'info',
+  );
 
   try {
     const result = await apiFetch(
@@ -404,6 +448,7 @@ async function previewWeather() {
     const forecast = await apiFetch(
       `/api/weather/forecast?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&days=3`,
     );
+    rememberProviderLocation(forecast.location, { lat, lon });
     renderForecast(forecast);
     showStatus(elements.weatherStatus, 'Forecast loaded.', 'success');
   } catch (error) {
@@ -443,6 +488,8 @@ function updatePreviewAvailability() {
 }
 
 function handleCoordinateInput() {
+  state.providerLocation = null;
+  state.providerLocationKey = '';
   updatePreviewAvailability();
   scheduleCurrentWeatherPreview();
 }
@@ -503,6 +550,7 @@ async function loadCurrentWeatherPreview(options = {}) {
       return;
     }
 
+    rememberProviderLocation(weather.location, { lat, lon });
     renderCurrentWeather(weather, { lat, lon });
     showStatus(elements.weatherStatus, 'Current weather loaded.', 'success');
   } catch (error) {
@@ -560,7 +608,10 @@ function renderCurrentWeather(weather, coordinates) {
   const locationText = [
     location.country,
     location.timezone,
-    coordinatePair(location.lat ?? coordinates.lat, location.lon ?? coordinates.lon),
+    coordinatePair(
+      location.lat ?? coordinates.lat,
+      location.lon ?? coordinates.lon,
+    ),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -620,17 +671,49 @@ function weatherSummaryBlock(summary) {
   return `<p class="weather-summary">${escapeHtml(summary)}</p>`;
 }
 
+function rememberProviderLocation(location, coordinates) {
+  if (!location || typeof location !== 'object') {
+    return;
+  }
+
+  state.providerLocation = {
+    country: firstText(location.country),
+    timezone: firstText(location.timezone),
+  };
+  state.providerLocationKey = coordinateKey(coordinates.lat, coordinates.lon);
+}
+
+function providerLocationForCoordinates(lat, lon) {
+  if (state.providerLocationKey !== coordinateKey(lat, lon)) {
+    return null;
+  }
+
+  return state.providerLocation;
+}
+
+function subscriptionLocationDetails(subscription) {
+  return [
+    subscription.locationCountry,
+    subscription.locationTimezone,
+    coordinatePair(subscription.latitude, subscription.longitude),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 async function loadSubscriptionAlerts(id, label) {
   state.selectedSubscriptionId = id;
   elements.selectedSubscription.textContent = `Alerts for ${label || 'selected subscription'}.`;
   elements.alertsOutput.innerHTML = '<p class="empty">Loading alerts...</p>';
   showStatus(elements.alertsStatus, 'Loading alert history...', 'info');
-  elements.subscriptionsList.querySelectorAll('.subscription').forEach((card) => {
-    card.classList.toggle(
-      'is-selected',
-      card.querySelector('[data-alert-id]')?.dataset.alertId === id,
-    );
-  });
+  elements.subscriptionsList
+    .querySelectorAll('.subscription')
+    .forEach((card) => {
+      card.classList.toggle(
+        'is-selected',
+        card.querySelector('[data-alert-id]')?.dataset.alertId === id,
+      );
+    });
 
   try {
     const alerts = await apiFetch(
@@ -685,14 +768,19 @@ function renderAlertCard(alert) {
 
 function clearSelectedSubscription() {
   state.selectedSubscriptionId = '';
-  elements.selectedSubscription.textContent = 'Select a subscription to view alerts.';
-  elements.alertsOutput.innerHTML = '<p class="empty">No subscription selected.</p>';
+  elements.selectedSubscription.textContent =
+    'Select a subscription to view alerts.';
+  elements.alertsOutput.innerHTML =
+    '<p class="empty">No subscription selected.</p>';
   elements.alertsStatus.className = 'status';
   elements.alertsStatus.textContent = '';
 }
 
 async function apiFetch(path, options = {}) {
-  const response = await fetch(`${cleanBaseUrl(state.apiBaseUrl)}${path}`, options);
+  const response = await fetch(
+    `${cleanBaseUrl(state.apiBaseUrl)}${path}`,
+    options,
+  );
   const text = await response.text();
   const data = text ? parseJson(text) : null;
 
@@ -847,6 +935,14 @@ function coordinatePair(lat, lon) {
   }
 
   return `${lat}, ${lon}`;
+}
+
+function coordinateKey(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return '';
+  }
+
+  return `${lat.toFixed(6)},${lon.toFixed(6)}`;
 }
 
 function escapeHtml(value) {

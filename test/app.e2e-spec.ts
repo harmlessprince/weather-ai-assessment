@@ -82,6 +82,33 @@ describe('AppController (e2e)', () => {
       });
   });
 
+  it('/api/subscriptions (POST) stores provider location metadata', async () => {
+    await request(app.getHttpServer())
+      .post('/api/subscriptions')
+      .send({
+        email: 'demo@example.com',
+        location: {
+          label: 'North Plot',
+          lat: 6.5244,
+          lon: 3.3792,
+          country: 'NG',
+          timezone: 'Africa/Lagos',
+        },
+        alerts: ['heavy_rain'],
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body).toEqual(
+          expect.objectContaining({
+            email: 'demo@example.com',
+            locationLabel: 'North Plot',
+            locationCountry: 'NG',
+            locationTimezone: 'Africa/Lagos',
+          }),
+        );
+      });
+  });
+
   it('/api/subscriptions/by-email (POST) returns active subscriptions by email', async () => {
     await subscriptionRepository.save([
       subscriptionRepository.create({

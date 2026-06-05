@@ -9,6 +9,8 @@ export class InitialSqliteSchema1760000000000 implements MigrationInterface {
         "id" varchar PRIMARY KEY NOT NULL,
         "email" varchar(254) NOT NULL,
         "location_label" varchar(160) NOT NULL,
+        "location_timezone" varchar(80),
+        "location_country" varchar(80),
         "latitude" real NOT NULL,
         "longitude" real NOT NULL,
         "alertTypes" text NOT NULL DEFAULT ('["heavy_rain","storm_alert"]'),
