@@ -289,6 +289,7 @@ describe('AppController (e2e)', () => {
     expect(weatherService.getForecastSignals).toHaveBeenCalledWith({
       lat: lagos.latitude,
       lon: lagos.longitude,
+      ai: false,
     });
 
     const alerts = await alertRepository.find({
