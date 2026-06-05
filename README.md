@@ -1,6 +1,6 @@
 # WeatherAI Alert Subscription Service
 
-Backend assessment submission for WeatherAI. This project consumes WeatherAI forecast data, turns raw weather fields into actionable alert events, stores those events, and delivers or logs notifications for subscribed users.
+This project consumes WeatherAI forecast data, turns raw weather fields into actionable alert events, stores those events, and delivers or logs notifications for subscribed users.
 
 The assessment brief asked for a simple implementation that integrates WeatherAI APIs and shows architectural approach, API consumption, and problem-solving velocity. I built this as a small NestJS backend because the interesting part of the problem is not only calling `/v1/forecast`; it is deciding how to use a limited API budget safely, how to avoid duplicate alerts, and how to keep the notification layer replaceable when SMS/USSD is not available on the free plan.
 

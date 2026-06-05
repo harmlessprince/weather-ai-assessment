@@ -5,7 +5,7 @@ services:
     image: weather-ai-assessment-backend:latest
     restart: unless-stopped
     ports:
-      - "${PORT:-3000}:3000"
+      - "${PORT:-8080}:8080"
     environment:
       NODE_ENV: production
       PORT: 3000
