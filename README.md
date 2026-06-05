@@ -4,6 +4,11 @@ This project consumes WeatherAI forecast data, turns raw weather fields into act
 
 The assessment brief asked for a simple implementation that integrates WeatherAI APIs and shows architectural approach, API consumption, and problem-solving velocity. I built this as a small NestJS backend because the interesting part of the problem is not only calling `/v1/forecast`; it is deciding how to use a limited API budget safely, how to avoid duplicate alerts, and how to keep the notification layer replaceable when SMS/USSD is not available on the free plan.
 
+## Live Deployment
+
+- Client: https://taofeeq-weather-ai.netlify.app/
+- Backend API: https://weather-ai.taoforge.org
+
 ## What This App Does
 
 1. A user subscribes an email address to a location and a list of alert types.
@@ -198,6 +203,12 @@ Set local shell variables:
 ```bash
 BASE_URL=http://localhost:3000
 ADMIN_API_KEY=local-admin-key
+```
+
+For the deployed backend, use:
+
+```bash
+BASE_URL=https://weather-ai.taoforge.org
 ```
 
 ### Check current weather through WeatherAI

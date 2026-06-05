@@ -3,6 +3,10 @@ const STORAGE_KEYS = {
   apiBaseUrl: 'weatherai.apiBaseUrl',
 };
 
+const LOCAL_API_BASE_URL = 'http://localhost:3000';
+const PRODUCTION_API_BASE_URL = 'https://weather-ai.taoforge.org';
+const PRODUCTION_HOSTS = new Set(['taofeeq-weather-ai.netlify.app']);
+
 const ALERT_TYPES = [
   ['heavy_rain', 'Heavy rain'],
   ['extreme_heat', 'Extreme heat'],
@@ -16,7 +20,7 @@ const DEFAULT_ALERTS = new Set(['heavy_rain', 'storm_alert']);
 const state = {
   email: localStorage.getItem(STORAGE_KEYS.email) || '',
   apiBaseUrl:
-    localStorage.getItem(STORAGE_KEYS.apiBaseUrl) || 'http://localhost:3000',
+    localStorage.getItem(STORAGE_KEYS.apiBaseUrl) || defaultApiBaseUrl(),
   selectedSubscriptionId: '',
 };
 
@@ -576,7 +580,15 @@ function showStatus(element, message, type = 'info') {
 }
 
 function cleanBaseUrl(value) {
-  return (value || 'http://localhost:3000').trim().replace(/\/+$/, '');
+  return (value || defaultApiBaseUrl()).trim().replace(/\/+$/, '');
+}
+
+function defaultApiBaseUrl() {
+  if (PRODUCTION_HOSTS.has(window.location.hostname)) {
+    return PRODUCTION_API_BASE_URL;
+  }
+
+  return LOCAL_API_BASE_URL;
 }
 
 function describeGeolocationError(error) {
