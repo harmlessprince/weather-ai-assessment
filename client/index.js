@@ -613,35 +613,7 @@ function weatherMetric(label, value) {
 }
 
 function weatherSummary(...sources) {
-  return firstText(
-    ...sources.map(aiSummaryFields),
-    ...sources.map(summaryFields),
-  );
-}
-
-function aiSummaryFields(source) {
-  return firstText(
-    source?.ai_summary,
-    source?.aiSummary,
-    source?.ai?.summary,
-    source?.ai?.text,
-    source?.ai?.message,
-    source?.gemini_summary,
-    source?.geminiSummary,
-    source?.generated_summary,
-    source?.generatedSummary,
-    source?.insights?.summary,
-    source?.insights?.overview,
-  );
-}
-
-function summaryFields(source) {
-  return firstText(
-    source?.summary,
-    source?.weather_summary,
-    source?.weatherSummary,
-    source?.description,
-  );
+  return firstText(...sources.map((source) => source?.summary));
 }
 
 function weatherSummaryBlock(summary) {

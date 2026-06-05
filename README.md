@@ -64,7 +64,7 @@ The assessment assumes a WeatherAI budget of about `1,000` calls per month, or r
 
 The default demo settings are conservative: `POLL_INTERVAL_MINUTES=360` and `MAX_DEMO_SUBSCRIPTIONS=3`. At that setting, scheduled polling uses about `360` forecast calls per month, leaving room for manual testing, retries, deployment checks, and hands-on exploration.
 
-WeatherAI includes AI summaries by default on user-facing weather endpoints. The app keeps that default for explicit current-weather and forecast lookups, because those are interactive requests where the extra context is useful. Background alert polling passes `ai=false` because the scheduler only needs numeric forecast signals and should not spend the separate AI quota.
+WeatherAI documents AI summaries as enabled by default on user-facing weather endpoints. The app does not force `ai=false` for explicit current-weather and forecast lookups, so it stays aligned with that provider default. Background alert polling passes `ai=false` because the scheduler only needs numeric forecast signals and should not spend the separate AI quota.
 
 ## Request Flow
 
@@ -94,7 +94,7 @@ GET /api/alerts
 
 The `client/` folder contains the static demo app used by the deployed client. For local demos, start the API and open `client/index.html` in a browser. The client defaults to `http://localhost:3000` locally and to the deployed backend when served from the Netlify demo host. The API base URL can also be edited inside the UI.
 
-The client treats the latitude and longitude form as the active location context. When the coordinates are valid, it automatically loads current weather with a short debounce, including coordinates filled by browser geolocation. The forecast preview remains available as a manual action for checking the next few days before creating or reviewing a subscription.
+The client treats the latitude and longitude form as the active location context. When the coordinates are valid, it automatically loads current weather with a short debounce, including coordinates filled by browser geolocation. The forecast preview remains available as a manual action for checking the next few days before creating or reviewing a subscription. If a weather response includes the existing `summary` field, the client displays it above the metric grid.
 
 ## Environment Variables
 
