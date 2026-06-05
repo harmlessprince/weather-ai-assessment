@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: .
+    image: weather-ai-assessment-backend:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      WEATHER_AI_API_KEY: ${WEATHER_AI_API_KEY}
+      WEATHER_AI_BASE_URL: ${WEATHER_AI_BASE_URL:-https://api.weather-ai.co}
+      DATABASE_PATH: /app/data/weather-ai.production.sqlite
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-false}
+      POLL_INTERVAL_MINUTES: ${POLL_INTERVAL_MINUTES:-360}
+      ALERT_COOLDOWN_HOURS: ${ALERT_COOLDOWN_HOURS:-12}
+      MAX_DEMO_SUBSCRIPTIONS: ${MAX_DEMO_SUBSCRIPTIONS:-3}
+      EMAIL_DELIVERY_ENABLED: ${EMAIL_DELIVERY_ENABLED:-false}
+    volumes:
+      - weather_ai_data:/app/data
+
+volumes:
+  weather_ai_data:

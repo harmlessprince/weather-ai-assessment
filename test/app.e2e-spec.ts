@@ -23,6 +23,7 @@ describe('AppController (e2e)', () => {
 
   beforeEach(async () => {
     process.env.NODE_ENV = 'test';
+    process.env.DATABASE_PATH = 'data/weather-ai.test.sqlite';
     process.env.SCHEDULER_ENABLED = 'false';
     process.env.EMAIL_DELIVERY_ENABLED = 'false';
 

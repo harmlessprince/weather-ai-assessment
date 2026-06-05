@@ -87,167 +87,6 @@ GET /api/alerts
   -> admin-only endpoint to inspect alert history
 ```
 
-## File-by-File Walkthrough
-
-### Application entry
-
-| File | Purpose |
-|---|---|
-| `src/main.ts` | Boots NestJS, enables global validation, strips unknown request fields, transforms query/body values, and listens on `PORT` or `3000`. |
-| `src/app.module.ts` | Wires the main modules together: config, database, subscriptions, alerts, weather, scheduler, and app health routes. |
-| `src/app.controller.ts` | Lightweight root/health-style controller from the Nest app shell. |
-| `src/app.service.ts` | Small app-level service used by the app controller. |
-
-### Config and database
-
-| File | Purpose |
-|---|---|
-| `src/config/app.config.ts` | Central typed config map for WeatherAI credentials, SQLite path, scheduler settings, alert thresholds, demo limits, and SMTP settings. |
-| `src/config/env.validation.ts` | Joi schema that validates required environment variables. In `test`, fake keys are allowed; outside test, `ADMIN_API_KEY` and `WEATHER_AI_API_KEY` are required. |
-| `src/config/config.module.ts` | Loads and exposes the application config module. |
-| `src/config/index.ts` | Barrel export for config files. |
-| `src/database/typeorm.config.ts` | Configures TypeORM with SQLite and registers `Subscription` and `WeatherAlert` entities. `synchronize` is disabled in production. |
-| `src/database/index.ts` | Barrel export for database config. |
-
-### WeatherAI integration
-
-| File | Purpose |
-|---|---|
-| `src/weather/weather.controller.ts` | Exposes demo passthrough endpoints: `GET /api/weather/current` and `GET /api/weather/forecast`. |
-| `src/weather/weather.service.ts` | Owns WeatherAI HTTP calls, bearer auth, base URL config, `ai=false`, and upstream error handling. |
-| `src/weather/weather-normalizer.ts` | Converts WeatherAI `current`, `hourly`, and `daily` response fields into internal alert signals. |
-| `src/weather/weather.types.ts` | TypeScript types for WeatherAI forecast responses and normalized forecast signals. |
-| `src/weather/dto/weather-query.dto.ts` | Validates latitude, longitude, and optional forecast day count query params. |
-| `src/weather/weather.module.ts` | Registers the weather controller/service and HTTP client. |
-| `src/weather/index.ts` | Barrel export for weather module APIs. |
-| `src/weather/*.spec.ts` | Unit tests for WeatherAI service behavior and normalization. |
-
-WeatherAI calls use:
-
-```http
-Authorization: Bearer <WEATHER_AI_API_KEY>
-```
-
-The forecast request includes:
-
-```text
-ai=false
-```
-
-That is intentional. The alert summaries are generated locally so the demo does not consume AI insight quota.
-
-### Subscriptions
-
-| File | Purpose |
-|---|---|
-| `src/subscriptions/subscriptions.controller.ts` | Creates subscriptions, fetches one subscription, deletes a subscription, and exposes admin-only active subscription listing. |
-| `src/subscriptions/subscriptions.service.ts` | Enforces demo subscription cap, normalizes alert aliases, prevents duplicate email/location subscriptions, and marks subscriptions as polled. |
-| `src/subscriptions/subscription.entity.ts` | SQLite entity for subscriber email, location, alert preferences, channel, status, and last poll time. |
-| `src/subscriptions/dto/create-subscription.dto.ts` | Validates subscription request body: email, location, and alert list. |
-| `src/subscriptions/subscriptions.module.ts` | Registers subscription dependencies. |
-| `src/subscriptions/index.ts` | Barrel export for subscription module APIs. |
-
-The demo cap is configurable:
-
-```text
-MAX_DEMO_SUBSCRIPTIONS=3
-```
-
-This is not a product limitation. It is a quota safety control for the assessment deployment.
-
-### Alerts
-
-| File | Purpose |
-|---|---|
-| `src/alerts/alert-evaluator.service.ts` | Core rule engine. Checks normalized weather signals against thresholds, selects strongest matches, builds alert records, and suppresses duplicate/cooldown alerts. |
-| `src/alerts/weather-alert.entity.ts` | SQLite entity for alert history, severity, forecast window, fingerprint, matched values, payload, and delivery status. |
-| `src/alerts/alerts.controller.ts` | Admin-only alert history endpoint with optional `email` and `location` filters. |
-| `src/alerts/webhook-simulation.controller.ts` | Demo endpoint that simulates a webhook-like evaluation for active subscriptions at a location. Useful because real WeatherAI webhooks are not available on the free plan. |
-| `src/alerts/dto/alert-query.dto.ts` | Validates alert history filters. |
-| `src/alerts/dto/simulate-webhook.dto.ts` | Validates simulated webhook coordinates. |
-| `src/alerts/alerts.module.ts` | Registers alert controllers and alert evaluator dependencies. |
-| `src/alerts/index.ts` | Barrel export for alert module APIs. |
-| `src/alerts/*.spec.ts` | Unit tests for threshold matching and deduplication logic. |
-
-Default thresholds:
-
-| Alert type | Default trigger |
-|---|---|
-| Heavy rain | `precipitation_sum >= 25mm` or `precipitation_probability >= 80%` |
-| Extreme heat | `temperature >= 35C` |
-| Frost warning | `temperature <= 2C` |
-| Storm alert | WeatherAI condition code in `95,96,99` |
-| High wind | `wind_speed >= 40kph` or `wind_gust >= 60kph` |
-
-Deduplication uses two layers:
-
-1. Fingerprint: `subscription_id:alert_type:signal_source:forecast_window_start`
-2. Cooldown: do not resend the same alert type for the same subscription within `ALERT_COOLDOWN_HOURS`
-
-Default cooldown:
-
-```text
-ALERT_COOLDOWN_HOURS=12
-```
-
-### Scheduler
-
-| File | Purpose |
-|---|---|
-| `src/scheduler/scheduler.service.ts` | Runs the polling loop when enabled, prevents overlapping poll cycles, evaluates each active subscription, dispatches/logs alerts, saves alert records, and marks subscriptions as polled. |
-| `src/scheduler/scheduler.module.ts` | Registers Nest schedule support and scheduler dependencies. |
-| `src/scheduler/index.ts` | Barrel export for scheduler module APIs. |
-| `src/scheduler/scheduler.service.spec.ts` | Unit tests for scheduler behavior. |
-
-The scheduler is off by default so a local reviewer can start the app without immediately spending WeatherAI quota.
-
-```text
-SCHEDULER_ENABLED=false
-```
-
-Set it to `true` only when you want automatic polling.
-
-### Notifications
-
-| File | Purpose |
-|---|---|
-| `src/notifications/notification.service.ts` | Builds alert email content, sends via SMTP when enabled, or logs the email payload when disabled. Updates delivery status on the alert entity. |
-| `src/notifications/notifications.module.ts` | Registers notification service. |
-| `src/notifications/index.ts` | Barrel export for notification module APIs. |
-| `src/notifications/notification.service.spec.ts` | Unit tests for logged/sent/failed notification paths. |
-
-Email delivery is off by default:
-
-```text
-EMAIL_DELIVERY_ENABLED=false
-```
-
-That means reviewers can trigger alerts without sending real emails. The alert is still persisted with `deliveryStatus=logged`.
-
-### Admin guard
-
-| File | Purpose |
-|---|---|
-| `src/common/admin-api-key.guard.ts` | Protects admin endpoints using either `x-admin-api-key` or `Authorization: Bearer <ADMIN_API_KEY>`. |
-
-Admin-protected endpoints:
-
-- `GET /api/subscriptions`
-- `GET /api/alerts`
-
-### Tests and project config
-
-| File | Purpose |
-|---|---|
-| `package.json` | Scripts and dependencies for NestJS, TypeORM, SQLite, validation, scheduling, Axios, and Nodemailer. |
-| `package-lock.json` | Locked dependency tree for reproducible installs. |
-| `test/app.e2e-spec.ts` | End-to-end test entry point. |
-| `test/jest-e2e.json` | Jest e2e config. |
-| `eslint.config.mjs` | ESLint config. |
-| `tsconfig.json` | TypeScript config. |
-| `tsconfig.build.json` | Production build TypeScript config. |
-| `nest-cli.json` | Nest CLI config. |
-
 ## Environment Variables
 
 Required outside `NODE_ENV=test`:
@@ -263,7 +102,7 @@ Common optional variables:
 |---|---|---|
 | `PORT` | `3000` | HTTP server port. |
 | `WEATHER_AI_BASE_URL` | `https://api.weather-ai.co` | WeatherAI API base URL. |
-| `DATABASE_PATH` | `data/weather-ai.sqlite` | SQLite database file. |
+| `DATABASE_PATH` | Environment-specific | SQLite database file. Defaults to `data/weather-ai.development.sqlite`, `data/weather-ai.test.sqlite`, or `data/weather-ai.production.sqlite` based on `NODE_ENV`. |
 | `SCHEDULER_ENABLED` | `false` | Enables automatic forecast polling. |
 | `POLL_INTERVAL_MINUTES` | `360` | Poll interval. Minimum allowed value is `30`. |
 | `MAX_DEMO_SUBSCRIPTIONS` | `3` | Demo cap to protect free-tier quota. |
@@ -324,6 +163,12 @@ npm test
 npm run test:e2e
 ```
 
+Tests use a separate SQLite file:
+
+```text
+data/weather-ai.test.sqlite
+```
+
 Build:
 
 ```bash
@@ -335,6 +180,16 @@ Run production build:
 ```bash
 npm run start:prod
 ```
+
+By default, each runtime environment uses a separate SQLite file:
+
+| Environment | Default SQLite path |
+|---|---|
+| `development` | `data/weather-ai.development.sqlite` |
+| `test` | `data/weather-ai.test.sqlite` |
+| `production` | `data/weather-ai.production.sqlite` |
+
+You can override this with `DATABASE_PATH` when needed.
 
 ## Curl Examples
 
@@ -437,6 +292,45 @@ curl -X DELETE "$BASE_URL/api/subscriptions/<subscription_id>"
 
 ## Deployment Notes
 
+### Docker
+
+Build the production image:
+
+```bash
+docker build -t weather-ai-assessment-backend .
+```
+
+Run it with a durable SQLite mount:
+
+```bash
+docker run --rm \
+  -p 3000:3000 \
+  -v weather_ai_data:/app/data \
+  -e ADMIN_API_KEY=change-me-admin-key \
+  -e WEATHER_AI_API_KEY=your-weatherai-api-key \
+  -e SCHEDULER_ENABLED=false \
+  -e EMAIL_DELIVERY_ENABLED=false \
+  weather-ai-assessment-backend
+```
+
+Or use Docker Compose:
+
+```bash
+ADMIN_API_KEY=change-me-admin-key \
+WEATHER_AI_API_KEY=your-weatherai-api-key \
+docker compose up --build
+```
+
+The container stores production SQLite data at:
+
+```text
+/app/data/weather-ai.production.sqlite
+```
+
+The `docker-compose.yml` file mounts `/app/data` to a named volume so data survives container restarts. In `NODE_ENV=production`, TypeORM runs the initial schema migration and keeps `synchronize` disabled.
+
+### Node hosts
+
 For Render, Railway, Fly.io, or similar Node hosts:
 
 1. Set the build command to:
@@ -456,6 +350,7 @@ npm run start:prod
 ```text
 ADMIN_API_KEY=<strong random value>
 WEATHER_AI_API_KEY=<WeatherAI key>
+DATABASE_PATH=data/weather-ai.production.sqlite
 SCHEDULER_ENABLED=false
 EMAIL_DELIVERY_ENABLED=false
 ```
@@ -468,13 +363,13 @@ POLL_INTERVAL_MINUTES=360
 MAX_DEMO_SUBSCRIPTIONS=3
 ```
 
-5. If the platform filesystem is ephemeral, use a managed database for production. SQLite is fine for this assessment demo, but a deployed production service should use Postgres or another durable store.
+5. If the platform filesystem is ephemeral, mount a persistent disk or use a managed database. SQLite is fine for this assessment demo, but a deployed production service should use Postgres or another durable store.
 
 ## Production Improvements
 
 If this were expanded beyond the assessment, the next steps would be:
 
-- Replace SQLite with Postgres and migrations.
+- Replace SQLite with Postgres and a fuller migration workflow.
 - Group subscriptions by coordinate so one WeatherAI call can serve many subscribers in the same location.
 - Add retry/backoff for transient WeatherAI and SMTP failures.
 - Add a queue for notification delivery.

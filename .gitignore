@@ -51,7 +51,12 @@ pids
 *.pid
 *.seed
 *.pid.lock
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+!data/.gitkeep
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 weatherai_handover.md
+file-by-file.md

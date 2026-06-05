@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config';
+import { getDefaultDatabasePath } from './database-path';
 
 export default registerAs('app', () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
@@ -9,7 +10,9 @@ export default registerAs('app', () => ({
     apiKey: process.env.WEATHER_AI_API_KEY,
   },
   database: {
-    path: process.env.DATABASE_PATH ?? 'data/weather-ai.sqlite',
+    path:
+      process.env.DATABASE_PATH ??
+      getDefaultDatabasePath(process.env.NODE_ENV),
   },
   scheduler: {
     enabled: process.env.SCHEDULER_ENABLED === 'true',

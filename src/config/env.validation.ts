@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { getDefaultDatabasePath } from './database-path';
 
 const requiredOutsideTest = Joi.when('NODE_ENV', {
   is: 'test',
@@ -16,7 +17,9 @@ export const envValidationSchema = Joi.object({
   WEATHER_AI_API_KEY: requiredOutsideTest,
   WEATHER_AI_BASE_URL: Joi.string().uri().default('https://api.weather-ai.co'),
 
-  DATABASE_PATH: Joi.string().default('data/weather-ai.sqlite'),
+  DATABASE_PATH: Joi.string().default((parent: { NODE_ENV?: string }) =>
+    getDefaultDatabasePath(parent.NODE_ENV),
+  ),
 
   SCHEDULER_ENABLED: Joi.boolean().truthy('true').falsy('false').default(false),
   POLL_INTERVAL_MINUTES: Joi.number().integer().min(30).default(360),
