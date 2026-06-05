@@ -2,7 +2,9 @@
 
 This project consumes WeatherAI forecast data, turns raw weather fields into actionable alert events, stores those events, and delivers or logs notifications for subscribed users.
 
-The assessment brief asked for a simple implementation that integrates WeatherAI APIs and shows architectural approach, API consumption, and problem-solving velocity. I built this as a small NestJS backend because the interesting part of the problem is not only calling `/v1/forecast`; it is deciding how to use a limited API budget safely, how to avoid duplicate alerts, and how to keep the notification layer replaceable when SMS/USSD is not available on the free plan.
+The assessment brief asked for a simple implementation that integrates WeatherAI APIs and shows architectural approach, API consumption, and problem-solving velocity. I built the core as a small NestJS backend because the interesting part of the problem is not only calling `/v1/forecast`; it is deciding how to use a limited API budget safely, how to avoid duplicate alerts, and how to keep the notification layer replaceable when SMS/USSD is not available on the free plan.
+
+I also included a lightweight client application for demo purposes. The client makes the use case easier to inspect: a farmer can save an email address, create subscriptions for multiple farms or plots, choose the alert types that matter for each location, manually trigger a poll for a subscription, and view alert history per farm. The UI is intentionally simple; it exists to make the backend workflow visible without requiring the reviewer to replay the whole journey through curl.
 
 ## Live Deployment
 
@@ -11,14 +13,15 @@ The assessment brief asked for a simple implementation that integrates WeatherAI
 
 ## What This App Does
 
-1. A user subscribes an email address to a location and a list of alert types.
-2. The app polls WeatherAI forecast data for active subscription locations.
-3. The forecast response is normalized into a provider-neutral signal format.
-4. The alert engine checks each signal against configurable thresholds.
-5. The strongest alert per alert type is selected for the poll cycle.
-6. Duplicate alerts are suppressed with fingerprints and cooldown windows.
-7. Alerts are persisted in SQLite.
-8. Email delivery is attempted when SMTP is enabled; otherwise the alert is logged for demo safety.
+1. A farmer subscribes an email address to one or more farm locations.
+2. Each farm subscription can track its own alert types, such as heavy rain, frost, storm, heat, or wind.
+3. The app polls WeatherAI forecast data for active subscription locations.
+4. The forecast response is normalized into a provider-neutral signal format.
+5. The alert engine checks each signal against configurable thresholds.
+6. The strongest alert per alert type is selected for the poll cycle.
+7. Duplicate alerts are suppressed with fingerprints and cooldown windows.
+8. Alerts are persisted in SQLite and linked back to the subscription that triggered them.
+9. Email delivery is attempted when SMTP is enabled; otherwise the alert is logged for demo safety.
 
 Supported alert types:
 
@@ -90,6 +93,21 @@ SchedulerService poll cycle
 GET /api/alerts
   -> admin-only endpoint to inspect alert history
 ```
+
+## Client Application
+
+The `client/` folder contains a small static demo app. It is not required for the backend to run, but it helps show the product experience around the API:
+
+- Save the farmer's email address for lookup.
+- Create separate weather alert subscriptions for different farms or plots.
+- Choose relevant alert types per farm.
+- Preview current/forecast weather for a coordinate.
+- Trigger a manual poll for one subscription during the demo.
+- View alert history tied to the selected subscription.
+
+This keeps the UI useful without turning the assessment into a frontend-heavy project. The backend remains the source of truth; the client simply makes the subscription and alert workflow visible.
+
+For local demos, start the API and open `client/index.html` in a browser. The client defaults to `http://localhost:3000` locally and to the deployed backend when served from the Netlify demo host. The API base URL can also be edited inside the UI.
 
 ## Environment Variables
 
