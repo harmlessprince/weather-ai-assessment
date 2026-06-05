@@ -122,7 +122,7 @@ Auth: `Authorization: Bearer <WEATHER_AI_API_KEY>` header on all requests
 Important: pass `ai=false` where supported so the demo does not consume AI summary quota unnecessarily.
 
 ### 1. `GET /v1/forecast`
-**Purpose:** Check upcoming forecast periods for threshold conditions — rain probability, max temp, storm risk, wind
+**Purpose:** Primary API for the project. Check upcoming forecast periods for threshold conditions — rain probability, max/min temp, storm risk, wind speed, and wind gust.
 
 **When called:** Every poll cycle, per subscribed location  
 **Key query params:**
@@ -135,6 +135,36 @@ Important: pass `ai=false` where supported so the demo does not consume AI summa
 | `ai` | boolean | optional | Use `false` to avoid AI quota use |
 
 **Used for:** Heavy Rain, Extreme Heat, Frost Warning, Storm Alert, High Wind Speed detection
+
+**Observed response shape:** `/v1/forecast` already returns `current`, `hourly`, and `daily` in one response. This means we do **not** need separate daily/hourly endpoints for the assessment. One API request per subscribed location gives enough data for both near-term and multi-day alert evaluation.
+
+Key fields from the observed response:
+
+| Scope | Fields |
+|---|---|
+| `location` | `lat`, `lon`, `timezone`, `requested_lat`, `requested_lon`, `country` |
+| `current` | `time`, `temperature`, `wind_speed`, `wind_direction`, `condition_code`, `humidity`, `feels_like`, `uv_index`, `wind_gust`, `icon`, `icon_path` |
+| `hourly[]` | `time`, `temperature`, `precipitation_probability`, `wind_speed`, `condition_code`, `humidity`, `feels_like`, `wind_gust`, `uv_index`, `icon`, `icon_path` |
+| `daily[]` | `date`, `temp_min`, `temp_max`, `precipitation_sum`, `precipitation_probability`, `wind_max`, `condition_code`, `sunrise`, `sunset`, `icon`, `icon_path` |
+
+**Implementation decision:** Normalize WeatherAI's response into internal alert signals before evaluating thresholds. Do not spread raw WeatherAI field names throughout the alert engine.
+
+Internal normalized shape:
+
+```ts
+type ForecastAlertSignal = {
+  source: 'current' | 'hourly' | 'daily';
+  windowStart: string;
+  temperatureC?: number;
+  tempMinC?: number;
+  tempMaxC?: number;
+  precipitationMm?: number;
+  precipitationProbability?: number;
+  windSpeedKph?: number;
+  windGustKph?: number;
+  conditionCode?: string;
+};
+```
 
 Sample Response
 
@@ -7098,6 +7128,15 @@ Response Sample
 ```
 ---
 
+### 4. `GET /v1/usage` (Optional)
+**Purpose:** Admin/health visibility for WeatherAI request and AI quota usage.
+
+**When called:** On admin request or health diagnostics, not in the polling scheduler.
+
+**Used for:** Showing remaining WeatherAI quota and making the demo more operationally transparent.
+
+---
+
 ## Project API — Endpoints Exposed
 
 ### Subscriptions
@@ -7199,13 +7238,15 @@ Response: `200` with any alerts that would have fired.
 
 ## Alert Thresholds (Default, Configurable via Env)
 
-| Alert Type | Field | Condition |
-|---|---|---|
-| Heavy Rain | `precipitation_mm` | > 20mm in 24h |
-| Storm Alert | `wind_speed_kph` | > 80 kph |
-| Extreme Heat | `temp_max_c` | > 38°C |
-| Frost Warning | `temp_min_c` | < 2°C |
-| High Wind Speed | `wind_speed_kph` | > 50 kph |
+Use normalized alert signals internally, but map them from WeatherAI's real response fields:
+
+| Alert Type | WeatherAI Source Fields | Normalized Fields | Condition |
+|---|---|---|---|
+| Heavy Rain | `daily.precipitation_sum`, `daily.precipitation_probability` | `precipitationMm`, `precipitationProbability` | `precipitationMm > 20` and optionally `precipitationProbability >= 60` |
+| Storm Alert | `current.condition_code`, `hourly.condition_code`, `daily.condition_code`, `hourly.wind_gust` | `conditionCode`, `windGustKph` | `conditionCode` in `["95", "96", "99"]` or `windGustKph > 80` |
+| Extreme Heat | `daily.temp_max`, `hourly.temperature`, `current.temperature` | `tempMaxC`, `temperatureC` | `tempMaxC > 38` or `temperatureC > 38` |
+| Frost Warning | `daily.temp_min`, `hourly.temperature`, `current.temperature` | `tempMinC`, `temperatureC` | `tempMinC < 2` or `temperatureC < 2` |
+| High Wind Speed | `daily.wind_max`, `hourly.wind_speed`, `current.wind_speed`, `hourly.wind_gust`, `current.wind_gust` | `windSpeedKph`, `windGustKph` | `windSpeedKph > 50` or `windGustKph > 50` |
 
 All thresholds overridable via env vars (e.g. `THRESHOLD_HEAVY_RAIN_MM=20`).
 
@@ -7216,11 +7257,11 @@ All thresholds overridable via env vars (e.g. `THRESHOLD_HEAVY_RAIN_MM=20`).
 | Concern | Choice | Reason |
 |---|---|---|
 | Runtime | Node.js/TypeScript | Matches WeatherAI's inferred stack |
-| Framework | Fastify | Lightweight, schema-first, good for API-only services |
-| Scheduler | node-cron | Simple, no external dependency |
+| Framework | NestJS | Familiar, structured backend framework; easy to defend with modules/services/controllers |
+| Scheduler | `@nestjs/schedule` | Native NestJS scheduling abstraction for quota-aware polling |
 | Notification | Nodemailer + SMTP | Free replacement for locked SMS feature |
-| Storage | SQLite | Simple persistent database for bare-metal deployment |
-| Configuration | dotenv + `.env` | Keeps deployment secrets and runtime settings outside source control |
+| Storage | SQLite + TypeORM | Simple persistent database for bare-metal deployment; familiar entity/repository model |
+| Configuration | `@nestjs/config` + `.env` | Keeps deployment secrets and runtime settings outside source control |
 | Deployment | Bare metal | Candidate will host directly; use PM2/systemd + reverse proxy |
 
 ---
@@ -7229,26 +7270,38 @@ All thresholds overridable via env vars (e.g. `THRESHOLD_HEAVY_RAIN_MM=20`).
 
 ```
 src/
-  index.ts                  # Entry point
-  config.ts                 # Env vars + thresholds
-  routes/
-    subscriptions.ts
-    weather.ts
-    alerts.ts
-    webhook.ts
-  services/
-    weatherService.ts       # Wraps WeatherAI API calls
-    alertService.ts         # Threshold evaluation logic
-    notificationService.ts  # Email dispatch (swappable interface)
-    schedulerService.ts     # node-cron polling loop
-  db/
-    connection.ts           # SQLite connection/bootstrap
-    migrations.ts           # Creates required tables
-    repositories/
-      subscriptionRepository.ts
-      alertRepository.ts
-  types/
-    index.ts
+  main.ts
+  app.module.ts
+  config/
+    env.validation.ts
+    thresholds.config.ts
+  weather/
+    weather.module.ts
+    weather.controller.ts
+    weather.service.ts       # Wraps WeatherAI API calls
+    weather.types.ts         # Raw WeatherAI response interfaces
+  alerts/
+    alerts.module.ts
+    alerts.controller.ts
+    alert-evaluator.service.ts
+    forecast-normalizer.service.ts
+    alert.entity.ts
+  subscriptions/
+    subscriptions.module.ts
+    subscriptions.controller.ts
+    subscription.entity.ts
+  notifications/
+    notifications.module.ts
+    notification.service.ts  # Nodemailer email dispatch
+    templates/
+  scheduler/
+    scheduler.module.ts
+    scheduler.service.ts     # @nestjs/schedule polling loop
+  health/
+    health.module.ts
+    health.controller.ts
+  common/
+    admin-api-key.guard.ts
 ```
 
 ---
@@ -7282,6 +7335,7 @@ Keep tests focused but meaningful:
 - Alert threshold detection does not fire below configured limits.
 - Alert cooldown prevents duplicate alert emails.
 - Subscription creation validates email, location, and allowed alert types.
+- Forecast normalizer maps `current`, `hourly`, and `daily` response fields into internal alert signals.
 - WeatherAI client sends Bearer auth, required query params, and `ai=false`.
 - Health endpoint reports SQLite status.
 
@@ -7304,16 +7358,18 @@ The README should make the WeatherAI integration impossible to miss:
 
 ## Next Steps for Agent
 
-1. Scaffold project with Fastify + TypeScript
-2. Implement SQLite bootstrap/migrations and repositories for subscriptions + alerts
-3. Implement `weatherService.ts` — wrap `/v1/forecast`, `/v1/weather`, optional `/v1/weather-geo`; use Bearer auth and `ai=false`
-4. Implement `alertService.ts` — threshold evaluation against configurable limits
-5. Implement alert deduplication/cooldown using SQLite alert history
-6. Implement `notificationService.ts` — Nodemailer email dispatch with `EMAIL_DELIVERY_ENABLED`
-7. Implement `schedulerService.ts` — node-cron loop calling evaluate per subscription with `SCHEDULER_ENABLED`
-8. Wire up all routes, including `GET /health`
-9. Add admin protection for list-all subscription and alert audit endpoints
-10. Add focused tests for alert evaluation, cooldown, validation, WeatherAI client, and health
-11. Prepare bare-metal deployment instructions (`.env`, build, PM2/systemd, reverse proxy)
-12. Write README — architecture decisions, call budget math, curl examples
-13. Reply to claire@weather-ai.co with GitHub repo + live URL
+1. Scaffold project with NestJS + TypeScript
+2. Install NestJS dependencies, TypeORM, SQLite driver, config, scheduler, Axios, Nodemailer, Handlebars, and validation packages
+3. Implement TypeORM entities for subscriptions + alerts
+4. Implement `WeatherService` — wrap `/v1/forecast`, `/v1/weather`, optional `/v1/weather-geo`, optional `/v1/usage`; use Bearer auth and `ai=false`
+5. Implement `ForecastNormalizerService` — convert `current`, `hourly`, and `daily` into internal `ForecastAlertSignal[]`
+6. Implement `AlertEvaluatorService` — threshold evaluation against configurable limits
+7. Implement alert deduplication/cooldown using SQLite alert history
+8. Implement `NotificationService` — Nodemailer email dispatch with `EMAIL_DELIVERY_ENABLED`
+9. Implement `SchedulerService` — `@nestjs/schedule` loop calling evaluate per subscription with `SCHEDULER_ENABLED`
+10. Wire up all routes, including `GET /health`
+11. Add admin protection for list-all subscription and alert audit endpoints
+12. Add focused tests for alert evaluation, cooldown, validation, normalizer, WeatherAI client, and health
+13. Prepare bare-metal deployment instructions (`.env`, build, PM2/systemd, reverse proxy)
+14. Write README — architecture decisions, call budget math, curl examples
+15. Reply to claire@weather-ai.co with GitHub repo + live URL

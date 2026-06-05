@@ -1,4 +1,4 @@
-import Joi from 'joi';
+import * as Joi from 'joi';
 
 const requiredOutsideTest = Joi.when('NODE_ENV', {
   is: 'test',
@@ -14,9 +14,7 @@ export const envValidationSchema = Joi.object({
 
   ADMIN_API_KEY: requiredOutsideTest,
   WEATHER_AI_API_KEY: requiredOutsideTest,
-  WEATHER_AI_BASE_URL: Joi.string()
-    .uri()
-    .default('https://api.weather-ai.co'),
+  WEATHER_AI_BASE_URL: Joi.string().uri().default('https://api.weather-ai.co'),
 
   DATABASE_PATH: Joi.string().default('data/weather-ai.sqlite'),
 
