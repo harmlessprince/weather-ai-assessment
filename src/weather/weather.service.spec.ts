@@ -23,7 +23,7 @@ describe('WeatherService', () => {
       } as never,
     );
 
-  it('calls WeatherAI forecast endpoint with bearer auth and ai disabled', async () => {
+  it('calls WeatherAI forecast endpoint with bearer auth and WeatherAI AI default', async () => {
     const httpService = {
       get: jest.fn().mockReturnValue(
         of({
@@ -56,12 +56,11 @@ describe('WeatherService', () => {
         lat: -1.286,
         lon: 36.817,
         days: 3,
-        ai: false,
       },
     });
   });
 
-  it('calls WeatherAI current weather endpoint with bearer auth and ai disabled', async () => {
+  it('calls WeatherAI current weather endpoint with bearer auth and WeatherAI AI default', async () => {
     const httpService = {
       get: jest.fn().mockReturnValue(
         of({
@@ -87,6 +86,40 @@ describe('WeatherService', () => {
       params: {
         lat: -1.286,
         lon: 36.817,
+      },
+    });
+  });
+
+  it('passes explicit ai=false through to WeatherAI', async () => {
+    const httpService = {
+      get: jest.fn().mockReturnValue(
+        of({
+          data: {
+            current: {
+              temperature: 24.3,
+            },
+          },
+        }),
+      ),
+    };
+    const service = createService(httpService);
+
+    await service.getForecast({
+      lat: -1.286,
+      lon: 36.817,
+      days: 3,
+      ai: false,
+    });
+
+    expect(httpService.get).toHaveBeenCalledWith('/v1/forecast', {
+      baseURL: 'https://api.weather-ai.co',
+      headers: {
+        Authorization: 'Bearer wai_test_key',
+      },
+      params: {
+        lat: -1.286,
+        lon: 36.817,
+        days: 3,
         ai: false,
       },
     });

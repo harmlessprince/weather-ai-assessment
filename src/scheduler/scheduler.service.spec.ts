@@ -104,6 +104,7 @@ describe('SchedulerService', () => {
     expect(weatherService.getForecastSignals).toHaveBeenCalledWith({
       lat: subscription.latitude,
       lon: subscription.longitude,
+      ai: false,
     });
     expect(alertEvaluatorService.evaluateNewAlerts).toHaveBeenCalledWith(
       subscription,

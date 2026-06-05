@@ -16,12 +16,16 @@ const ALERT_TYPES = [
 ];
 
 const DEFAULT_ALERTS = new Set(['heavy_rain', 'storm_alert']);
+const CURRENT_WEATHER_DEBOUNCE_MS = 700;
 
 const state = {
   email: localStorage.getItem(STORAGE_KEYS.email) || '',
   apiBaseUrl:
     localStorage.getItem(STORAGE_KEYS.apiBaseUrl) || defaultApiBaseUrl(),
   selectedSubscriptionId: '',
+  currentWeatherTimer: null,
+  currentWeatherRequestId: 0,
+  lastCurrentWeatherKey: '',
 };
 
 const elements = {
@@ -42,6 +46,7 @@ const elements = {
   refreshSubscriptions: document.querySelector('#refreshSubscriptions'),
   subscriptionsList: document.querySelector('#subscriptionsList'),
   listStatus: document.querySelector('#listStatus'),
+  refreshCurrentWeather: document.querySelector('#refreshCurrentWeather'),
   previewWeather: document.querySelector('#previewWeather'),
   weatherStatus: document.querySelector('#weatherStatus'),
   weatherOutput: document.querySelector('#weatherOutput'),
@@ -94,14 +99,18 @@ function bindEvents() {
     state.apiBaseUrl = cleanBaseUrl(elements.apiBaseUrl.value);
     elements.apiBaseUrl.value = state.apiBaseUrl;
     localStorage.setItem(STORAGE_KEYS.apiBaseUrl, state.apiBaseUrl);
+    scheduleCurrentWeatherPreview({ immediate: true, force: true });
   });
 
   elements.useLocation.addEventListener('click', requestLocation);
   elements.subscriptionForm.addEventListener('submit', createSubscription);
   elements.refreshSubscriptions.addEventListener('click', loadSubscriptions);
+  elements.refreshCurrentWeather.addEventListener('click', () =>
+    scheduleCurrentWeatherPreview({ immediate: true, force: true }),
+  );
   elements.previewWeather.addEventListener('click', previewWeather);
-  elements.lat.addEventListener('input', updatePreviewAvailability);
-  elements.lon.addEventListener('input', updatePreviewAvailability);
+  elements.lat.addEventListener('input', handleCoordinateInput);
+  elements.lon.addEventListener('input', handleCoordinateInput);
 }
 
 function renderAlertTypes() {
@@ -145,6 +154,7 @@ async function requestLocation() {
       elements.lat.value = latitude.toFixed(6);
       elements.lon.value = longitude.toFixed(6);
       updatePreviewAvailability();
+      scheduleCurrentWeatherPreview({ immediate: true, force: true });
       elements.geoHint.textContent = 'Coordinates filled from your browser.';
       showStatus(
         elements.subscriptionStatus,
@@ -194,6 +204,7 @@ async function createSubscription(event) {
   } finally {
     setFormBusy(false);
     updatePreviewAvailability();
+    scheduleCurrentWeatherPreview({ immediate: true });
   }
 }
 
@@ -384,6 +395,7 @@ async function previewWeather() {
   const lat = Number(elements.lat.value);
   const lon = Number(elements.lon.value);
 
+  state.currentWeatherRequestId += 1;
   elements.previewWeather.disabled = true;
   showStatus(elements.weatherStatus, 'Loading forecast...', 'info');
   elements.weatherOutput.innerHTML = '<p class="empty">Loading forecast...</p>';
@@ -425,7 +437,82 @@ function validateCoordinates() {
 }
 
 function updatePreviewAvailability() {
-  elements.previewWeather.disabled = Boolean(validateCoordinates());
+  const isUnavailable = Boolean(validateCoordinates());
+  elements.refreshCurrentWeather.disabled = isUnavailable;
+  elements.previewWeather.disabled = isUnavailable;
+}
+
+function handleCoordinateInput() {
+  updatePreviewAvailability();
+  scheduleCurrentWeatherPreview();
+}
+
+function scheduleCurrentWeatherPreview(options = {}) {
+  window.clearTimeout(state.currentWeatherTimer);
+
+  const delay = options.immediate ? 0 : CURRENT_WEATHER_DEBOUNCE_MS;
+  state.currentWeatherTimer = window.setTimeout(() => {
+    loadCurrentWeatherPreview({ force: Boolean(options.force) });
+  }, delay);
+}
+
+async function loadCurrentWeatherPreview(options = {}) {
+  const latValue = elements.lat.value.trim();
+  const lonValue = elements.lon.value.trim();
+  state.currentWeatherRequestId += 1;
+
+  if (!latValue && !lonValue) {
+    state.lastCurrentWeatherKey = '';
+    clearStatus(elements.weatherStatus);
+    elements.weatherOutput.innerHTML =
+      '<p class="empty">Enter coordinates to load current weather.</p>';
+    return;
+  }
+
+  const coordinateError = validateCoordinates();
+
+  if (coordinateError) {
+    state.lastCurrentWeatherKey = '';
+    showStatus(elements.weatherStatus, coordinateError, 'error');
+    elements.weatherOutput.innerHTML =
+      '<p class="empty">Current weather will load when the coordinates are valid.</p>';
+    return;
+  }
+
+  const lat = Number(latValue);
+  const lon = Number(lonValue);
+  const key = `${lat},${lon},${state.apiBaseUrl}`;
+
+  if (!options.force && key === state.lastCurrentWeatherKey) {
+    return;
+  }
+
+  state.lastCurrentWeatherKey = key;
+  const requestId = state.currentWeatherRequestId;
+
+  showStatus(elements.weatherStatus, 'Loading current weather...', 'info');
+  elements.weatherOutput.innerHTML =
+    '<p class="empty">Loading current weather...</p>';
+
+  try {
+    const weather = await apiFetch(
+      `/api/weather/current?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+    );
+
+    if (requestId !== state.currentWeatherRequestId) {
+      return;
+    }
+
+    renderCurrentWeather(weather, { lat, lon });
+    showStatus(elements.weatherStatus, 'Current weather loaded.', 'success');
+  } catch (error) {
+    if (requestId !== state.currentWeatherRequestId) {
+      return;
+    }
+
+    showStatus(elements.weatherStatus, error.message, 'error');
+    elements.weatherOutput.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 function renderForecast(forecast) {
@@ -461,6 +548,45 @@ function renderForecast(forecast) {
           </div>`
         : '<p class="empty">No daily forecast details were returned.</p>'
     }
+  `;
+}
+
+function renderCurrentWeather(weather, coordinates) {
+  const current = weather.current || weather.weather || weather;
+  const location = weather.location || {};
+  const summary =
+    weather.summary ||
+    weather.ai_summary ||
+    weather.aiSummary ||
+    current.summary ||
+    current.ai_summary;
+  const locationText = [
+    location.country,
+    location.timezone,
+    coordinatePair(location.lat ?? coordinates.lat, location.lon ?? coordinates.lon),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  elements.weatherOutput.innerHTML = `
+    <div>
+      <h3>${locationText ? escapeHtml(locationText) : 'Current weather'}</h3>
+      <p class="meta">${current.time ? `Updated ${formatDate(current.time)}` : 'Live conditions for the entered coordinates'}</p>
+    </div>
+    ${
+      summary
+        ? `<p class="weather-summary">${escapeHtml(summary)}</p>`
+        : ''
+    }
+    <div class="metric-grid">
+      ${weatherMetric('Temperature', formatUnit(firstValue(current.temperature, current.temp), '°C'))}
+      ${weatherMetric('Feels like', formatUnit(firstValue(current.feels_like, current.feelsLike), '°C'))}
+      ${weatherMetric('Humidity', formatUnit(current.humidity, '%'))}
+      ${weatherMetric('Wind', formatUnit(firstValue(current.wind_speed, current.windSpeed), ' kph'))}
+      ${weatherMetric('Gusts', formatUnit(firstValue(current.wind_gust, current.windGust), ' kph'))}
+      ${weatherMetric('UV index', formatValue(firstValue(current.uv_index, current.uvIndex)))}
+      ${weatherMetric('Condition', formatValue(firstValue(current.condition_code, current.condition)))}
+    </div>
   `;
 }
 
@@ -621,6 +747,11 @@ function showStatus(element, message, type = 'info') {
   element.className = `status is-visible ${type}`;
 }
 
+function clearStatus(element) {
+  element.textContent = '';
+  element.className = 'status';
+}
+
 function cleanBaseUrl(value) {
   return (value || defaultApiBaseUrl()).trim().replace(/\/+$/, '');
 }
@@ -695,6 +826,12 @@ function formatUnit(value, unit) {
   }
 
   return `${value}${unit}`;
+}
+
+function firstValue(...values) {
+  return values.find(
+    (value) => value !== null && value !== undefined && value !== '',
+  );
 }
 
 function coordinatePair(lat, lon) {

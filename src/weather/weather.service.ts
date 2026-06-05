@@ -23,11 +23,13 @@ export type GetForecastParams = {
   lat: number;
   lon: number;
   days?: number;
+  ai?: boolean;
 };
 
 export type GetCurrentWeatherParams = {
   lat: number;
   lon: number;
+  ai?: boolean;
 };
 
 @Injectable()
@@ -44,8 +46,8 @@ export class WeatherService {
    * Fetches the raw forecast from WeatherAI's `/v1/forecast` endpoint.
    *
    * This method owns the external API contract: bearer authentication, base URL
-   * configuration, the `ai=false` safeguard for free-tier quota, and conversion
-   * of upstream failures into application-level HTTP exceptions.
+   * configuration, optional AI controls, and conversion of upstream failures
+   * into application-level HTTP exceptions.
    */
   async getForecast(
     params: GetForecastParams,
@@ -54,7 +56,7 @@ export class WeatherService {
       lat: params.lat,
       lon: params.lon,
       days: params.days,
-      ai: false,
+      ai: params.ai,
     });
   }
 
@@ -67,7 +69,7 @@ export class WeatherService {
     return this.getWeatherAi<Record<string, unknown>>('/v1/weather', {
       lat: params.lat,
       lon: params.lon,
-      ai: false,
+      ai: params.ai,
     });
   }
 
@@ -90,7 +92,7 @@ export class WeatherService {
           headers: {
             Authorization: `Bearer ${apiKey}`,
           },
-          params,
+          params: this.compactParams(params),
         }),
       );
 
@@ -137,5 +139,11 @@ export class WeatherService {
     }
 
     return 'unknown error';
+  }
+
+  private compactParams(params: Record<string, unknown>) {
+    return Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined),
+    );
   }
 }

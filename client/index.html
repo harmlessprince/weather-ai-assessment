@@ -329,6 +329,13 @@
         padding: 10px;
       }
 
+      .weather-summary {
+        border-left: 3px solid var(--accent);
+        color: var(--text);
+        margin: 0;
+        padding-left: 10px;
+      }
+
       .metric strong {
         display: block;
         color: var(--text);
@@ -545,15 +552,20 @@
             <div class="section-head">
               <div>
                 <h2>Current Weather Preview</h2>
-                <p class="section-note">Readable forecast for the coordinates.</p>
+                <p class="section-note">Live conditions for the coordinates.</p>
               </div>
-              <button class="secondary" id="previewWeather" type="button">
-                Preview Forecast
-              </button>
+              <div class="button-row">
+                <button class="secondary" id="refreshCurrentWeather" type="button">
+                  Refresh Current
+                </button>
+                <button class="secondary" id="previewWeather" type="button">
+                  Preview Forecast
+                </button>
+              </div>
             </div>
             <div class="status" id="weatherStatus"></div>
             <div class="weather-panel" id="weatherOutput">
-              <p class="empty">No forecast loaded.</p>
+              <p class="empty">Enter coordinates to load current weather.</p>
             </div>
           </section>
         </aside>

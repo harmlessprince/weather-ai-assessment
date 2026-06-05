@@ -149,6 +149,7 @@ export class SchedulerService
     const forecast = await this.weatherService.getForecastSignals({
       lat: subscription.latitude,
       lon: subscription.longitude,
+      ai: false,
     });
     const result = await this.alertEvaluatorService.evaluateNewAlerts(
       subscription,
