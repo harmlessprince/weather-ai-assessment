@@ -5,7 +5,7 @@ services:
     image: weather-ai-assessment-backend:latest
     restart: unless-stopped
     ports:
-      - "${PORT:-8080}:8080"
+      - "${HOST_PORT:-8080}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -18,6 +18,12 @@ services:
       ALERT_COOLDOWN_HOURS: ${ALERT_COOLDOWN_HOURS:-12}
       MAX_DEMO_SUBSCRIPTIONS: ${MAX_DEMO_SUBSCRIPTIONS:-3}
       EMAIL_DELIVERY_ENABLED: ${EMAIL_DELIVERY_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - weather_ai_data:/app/data
 
