@@ -25,6 +25,11 @@ export type GetForecastParams = {
   days?: number;
 };
 
+export type GetCurrentWeatherParams = {
+  lat: number;
+  lon: number;
+};
+
 @Injectable()
 export class WeatherService {
   private readonly logger = new Logger(WeatherService.name);
@@ -45,6 +50,31 @@ export class WeatherService {
   async getForecast(
     params: GetForecastParams,
   ): Promise<WeatherAiForecastResponse> {
+    return this.getWeatherAi<WeatherAiForecastResponse>('/v1/forecast', {
+      lat: params.lat,
+      lon: params.lon,
+      days: params.days,
+      ai: false,
+    });
+  }
+
+  /**
+   * Fetches current conditions from WeatherAI's `/v1/weather` endpoint.
+   */
+  async getCurrentWeather(
+    params: GetCurrentWeatherParams,
+  ): Promise<Record<string, unknown>> {
+    return this.getWeatherAi<Record<string, unknown>>('/v1/weather', {
+      lat: params.lat,
+      lon: params.lon,
+      ai: false,
+    });
+  }
+
+  private async getWeatherAi<T>(
+    path: string,
+    params: Record<string, unknown>,
+  ): Promise<T> {
     const apiKey = this.config.weatherAi.apiKey;
 
     if (!apiKey) {
@@ -55,27 +85,22 @@ export class WeatherService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.get<WeatherAiForecastResponse>('/v1/forecast', {
+        this.httpService.get<T>(path, {
           baseURL: this.config.weatherAi.baseUrl,
           headers: {
             Authorization: `Bearer ${apiKey}`,
           },
-          params: {
-            lat: params.lat,
-            lon: params.lon,
-            days: params.days,
-            ai: false,
-          },
+          params,
         }),
       );
 
       return response.data;
     } catch (error) {
       this.logger.warn(
-        `WeatherAI forecast request failed: ${this.describeHttpError(error)}`,
+        `WeatherAI request failed: ${this.describeHttpError(error)}`,
       );
 
-      throw new BadGatewayException('Unable to fetch forecast from WeatherAI');
+      throw new BadGatewayException('Unable to fetch weather from WeatherAI');
     }
   }
 

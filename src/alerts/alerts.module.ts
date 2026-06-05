@@ -2,7 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from '../config/app.config';
+import { AdminApiKeyGuard } from '../common/admin-api-key.guard';
+import { SubscriptionsModule } from '../subscriptions';
+import { WeatherModule } from '../weather';
 import { AlertEvaluatorService } from './alert-evaluator.service';
+import { AlertsController } from './alerts.controller';
+import { WebhookSimulationController } from './webhook-simulation.controller';
 import { WeatherAlert } from './weather-alert.entity';
 
 /**
@@ -15,8 +20,11 @@ import { WeatherAlert } from './weather-alert.entity';
   imports: [
     ConfigModule.forFeature(appConfig),
     TypeOrmModule.forFeature([WeatherAlert]),
+    SubscriptionsModule,
+    WeatherModule,
   ],
-  providers: [AlertEvaluatorService],
+  controllers: [AlertsController, WebhookSimulationController],
+  providers: [AlertEvaluatorService, AdminApiKeyGuard],
   exports: [AlertEvaluatorService],
 })
 export class AlertsModule {}

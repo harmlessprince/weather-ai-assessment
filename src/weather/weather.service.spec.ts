@@ -61,6 +61,37 @@ describe('WeatherService', () => {
     });
   });
 
+  it('calls WeatherAI current weather endpoint with bearer auth and ai disabled', async () => {
+    const httpService = {
+      get: jest.fn().mockReturnValue(
+        of({
+          data: {
+            temperature: 24.3,
+          },
+        }),
+      ),
+    };
+    const service = createService(httpService);
+
+    await expect(
+      service.getCurrentWeather({ lat: -1.286, lon: 36.817 }),
+    ).resolves.toEqual({
+      temperature: 24.3,
+    });
+
+    expect(httpService.get).toHaveBeenCalledWith('/v1/weather', {
+      baseURL: 'https://api.weather-ai.co',
+      headers: {
+        Authorization: 'Bearer wai_test_key',
+      },
+      params: {
+        lat: -1.286,
+        lon: 36.817,
+        ai: false,
+      },
+    });
+  });
+
   it('normalizes forecast responses into alert signals', async () => {
     const service = createService({
       get: jest.fn().mockReturnValue(

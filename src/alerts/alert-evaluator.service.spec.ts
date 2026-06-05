@@ -134,9 +134,7 @@ describe('AlertEvaluatorService', () => {
 
   it('suppresses exact forecast fingerprints already stored in alert history', async () => {
     const repository = createRepository({
-      findOne: jest
-        .fn()
-        .mockResolvedValueOnce({ id: 'alert_existing' } as WeatherAlert),
+      findOne: jest.fn().mockResolvedValueOnce({ id: 'alert_existing' }),
     });
     const service = new AlertEvaluatorService(repository, config as never);
 
@@ -169,7 +167,7 @@ describe('AlertEvaluatorService', () => {
       findOne: jest
         .fn()
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ id: 'alert_recent' } as WeatherAlert),
+        .mockResolvedValueOnce({ id: 'alert_recent' }),
     });
     const service = new AlertEvaluatorService(repository, config as never);
 
@@ -195,14 +193,18 @@ describe('AlertEvaluatorService', () => {
         existingAlertId: 'alert_recent',
       }),
     ]);
-    expect(repository.findOne).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          alertType: AlertType.HeavyRain,
-          subscriptionId: 'sub_123',
-          triggeredAt: MoreThanOrEqual(new Date('2026-06-05T00:00:00Z')),
-        }),
-      }),
+    const lastFindOneOptions = repository.findOne.mock.calls.at(-1)?.[0] as {
+      where: {
+        alertType: AlertType;
+        subscriptionId: string;
+        triggeredAt: ReturnType<typeof MoreThanOrEqual<Date>>;
+      };
+    };
+
+    expect(lastFindOneOptions.where.alertType).toBe(AlertType.HeavyRain);
+    expect(lastFindOneOptions.where.subscriptionId).toBe('sub_123');
+    expect(lastFindOneOptions.where.triggeredAt).toEqual(
+      MoreThanOrEqual(new Date('2026-06-05T00:00:00Z')),
     );
   });
 });
