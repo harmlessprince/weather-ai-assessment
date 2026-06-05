@@ -23,6 +23,15 @@ export const envValidationSchema = Joi.object({
 
   ALERT_COOLDOWN_HOURS: Joi.number().integer().min(1).default(12),
   MAX_DEMO_SUBSCRIPTIONS: Joi.number().integer().min(1).default(3),
+  HEAVY_RAIN_MM_THRESHOLD: Joi.number().min(1).default(25),
+  RAIN_PROBABILITY_THRESHOLD: Joi.number().min(1).max(100).default(80),
+  EXTREME_HEAT_C_THRESHOLD: Joi.number().default(35),
+  FROST_C_THRESHOLD: Joi.number().default(2),
+  HIGH_WIND_KPH_THRESHOLD: Joi.number().min(1).default(40),
+  WIND_GUST_KPH_THRESHOLD: Joi.number().min(1).default(60),
+  STORM_CONDITION_CODES: Joi.string()
+    .pattern(/^\d+(,\d+)*$/)
+    .default('95,96,99'),
 
   EMAIL_DELIVERY_ENABLED: Joi.boolean()
     .truthy('true')

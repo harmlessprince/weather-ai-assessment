@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AlertsModule } from './alerts';
 import { AppController } from './app.controller';
 import { AppConfigModule } from './config';
 import { typeOrmAsyncConfig } from './database';
@@ -10,6 +11,7 @@ import { WeatherModule } from './weather';
   imports: [
     AppConfigModule,
     TypeOrmModule.forRootAsync(typeOrmAsyncConfig),
+    AlertsModule,
     WeatherModule,
   ],
   controllers: [AppController],

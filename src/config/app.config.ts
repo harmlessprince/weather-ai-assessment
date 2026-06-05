@@ -18,6 +18,18 @@ export default registerAs('app', () => ({
   alerts: {
     cooldownHours: Number(process.env.ALERT_COOLDOWN_HOURS ?? 12),
     maxDemoSubscriptions: Number(process.env.MAX_DEMO_SUBSCRIPTIONS ?? 3),
+    thresholds: {
+      heavyRainMm: Number(process.env.HEAVY_RAIN_MM_THRESHOLD ?? 25),
+      rainProbability: Number(process.env.RAIN_PROBABILITY_THRESHOLD ?? 80),
+      extremeHeatC: Number(process.env.EXTREME_HEAT_C_THRESHOLD ?? 35),
+      frostC: Number(process.env.FROST_C_THRESHOLD ?? 2),
+      highWindKph: Number(process.env.HIGH_WIND_KPH_THRESHOLD ?? 40),
+      windGustKph: Number(process.env.WIND_GUST_KPH_THRESHOLD ?? 60),
+      stormConditionCodes: (process.env.STORM_CONDITION_CODES ?? '95,96,99')
+        .split(',')
+        .map((code) => code.trim())
+        .filter(Boolean),
+    },
   },
   email: {
     deliveryEnabled: process.env.EMAIL_DELIVERY_ENABLED === 'true',
