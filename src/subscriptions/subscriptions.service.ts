@@ -8,6 +8,7 @@ import {
 import { ConfigType } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { WeatherAlert } from '../alerts/weather-alert.entity';
 import appConfig from '../config/app.config';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import {
@@ -32,6 +33,8 @@ export class SubscriptionsService {
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptionRepository: Repository<Subscription>,
+    @InjectRepository(WeatherAlert)
+    private readonly alertRepository: Repository<WeatherAlert>,
     @Inject(appConfig.KEY)
     private readonly config: ConfigType<typeof appConfig>,
   ) {}
@@ -86,6 +89,26 @@ export class SubscriptionsService {
     return this.subscriptionRepository.find({
       where: { status: SubscriptionStatus.Active },
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  findActiveByEmail(email: string): Promise<Subscription[]> {
+    return this.subscriptionRepository
+      .createQueryBuilder('subscription')
+      .where('subscription.status = :status', {
+        status: SubscriptionStatus.Active,
+      })
+      .andWhere('LOWER(subscription.email) = LOWER(:email)', { email })
+      .orderBy('subscription.createdAt', 'DESC')
+      .getMany();
+  }
+
+  async findAlerts(id: string): Promise<WeatherAlert[]> {
+    await this.findOne(id);
+
+    return this.alertRepository.find({
+      where: { subscriptionId: id },
+      order: { triggeredAt: 'DESC' },
     });
   }
 

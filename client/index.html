@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WeatherAI Alerts</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --text: #172033;
+        --muted: #5e6a7d;
+        --border: #d9e0ea;
+        --accent: #146c94;
+        --accent-dark: #0f526f;
+        --danger: #b42318;
+        --success: #087443;
+        --warning: #93670f;
+        --shadow: 0 16px 40px rgba(20, 35, 55, 0.09);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      main {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 3.4rem);
+        line-height: 1;
+        letter-spacing: 0;
+        max-width: 720px;
+      }
+
+      h2 {
+        font-size: 1rem;
+      }
+
+      h3 {
+        font-size: 0.95rem;
+      }
+
+      .lead {
+        max-width: 720px;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .stack {
+        display: grid;
+        gap: 16px;
+      }
+
+      section,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        padding: 20px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .section-note {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      form {
+        display: grid;
+        gap: 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 0.88rem;
+        font-weight: 650;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        padding: 9px 11px;
+      }
+
+      input:focus {
+        border-color: var(--accent);
+        outline: 3px solid rgba(20, 108, 148, 0.16);
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      button {
+        min-height: 42px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 750;
+        padding: 9px 14px;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .secondary {
+        background: #fff;
+        border-color: var(--border);
+        color: var(--text);
+      }
+
+      .secondary:hover {
+        background: #edf3f8;
+      }
+
+      .danger {
+        background: #fff;
+        border-color: #f0c4bf;
+        color: var(--danger);
+      }
+
+      .danger:hover {
+        background: #fff2f0;
+      }
+
+      .permission-box {
+        display: grid;
+        gap: 12px;
+        border: 1px solid #c8d8e4;
+        border-radius: 8px;
+        background: #f1f7fb;
+        padding: 14px;
+      }
+
+      .permission-box p {
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .alert-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .check {
+        display: flex;
+        min-height: 44px;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        padding: 10px;
+      }
+
+      .check input {
+        width: 18px;
+        min-height: 18px;
+      }
+
+      .status {
+        display: none;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 0.92rem;
+      }
+
+      .status.is-visible {
+        display: block;
+      }
+
+      .status.info {
+        background: #eef6fb;
+        color: #104c66;
+      }
+
+      .status.success {
+        background: #ecfdf3;
+        color: var(--success);
+      }
+
+      .status.error {
+        background: #fff1f0;
+        color: var(--danger);
+      }
+
+      .status.warning {
+        background: #fff8e8;
+        color: var(--warning);
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .subscription {
+        display: grid;
+        gap: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px;
+      }
+
+      .subscription-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .meta,
+      .tiny {
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .tag {
+        border-radius: 999px;
+        background: #e9f3f6;
+        color: #14516b;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 4px 8px;
+      }
+
+      .subscription.is-selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(20, 108, 148, 0.12);
+      }
+
+      .weather-panel,
+      .alerts-panel {
+        display: grid;
+        gap: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fbfcfe;
+        padding: 14px;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #fff;
+        padding: 10px;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--text);
+        font-size: 1rem;
+      }
+
+      .forecast-days,
+      .alert-cards {
+        display: grid;
+        gap: 10px;
+      }
+
+      .day-card,
+      .alert-card {
+        display: grid;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px;
+      }
+
+      .alert-card.warning,
+      .alert-card.critical {
+        border-color: #f1b5ad;
+      }
+
+      .alert-card.watch {
+        border-color: #f2d28b;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      @media (max-width: 860px) {
+        .layout,
+        .grid,
+        .alert-grid,
+        .metric-grid {
+          grid-template-columns: 1fr;
+        }
+
+        main {
+          width: min(100% - 24px, 680px);
+          padding-top: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>WeatherAI Alerts</h1>
+        <p class="lead">
+          Subscribe an email address to location-based weather alerts, then
+          manage the subscriptions tied to that email.
+        </p>
+      </header>
+
+      <div class="layout">
+        <div class="stack">
+          <section>
+            <div class="section-head">
+              <div>
+                <h2>Email</h2>
+                <p class="section-note">Used for subscriptions and lookup.</p>
+              </div>
+            </div>
+            <form id="emailForm">
+              <label>
+                Email address
+                <input
+                  id="email"
+                  type="email"
+                  autocomplete="email"
+                  placeholder="you@example.com"
+                  required
+                />
+              </label>
+              <div class="button-row">
+                <button type="submit">Use email</button>
+                <button class="secondary" id="clearEmail" type="button">
+                  Clear
+                </button>
+              </div>
+              <div class="status" id="emailStatus"></div>
+            </form>
+          </section>
+
+          <section>
+            <div class="section-head">
+              <div>
+                <h2>Create subscription</h2>
+                <p class="section-note">
+                  The backend stores latitude, longitude, and one location
+                  label.
+                </p>
+              </div>
+            </div>
+
+            <form id="subscriptionForm">
+              <div class="permission-box">
+                <p>
+                  Location access helps fill latitude and longitude accurately.
+                  The coordinates are sent only when creating a weather alert
+                  subscription.
+                </p>
+                <div class="button-row">
+                  <button id="useLocation" type="button">
+                    Use my current location
+                  </button>
+                  <span class="tiny" id="geoHint">Manual entry also works.</span>
+                </div>
+              </div>
+
+              <div class="grid">
+                <label>
+                  Latitude
+                  <input
+                    id="lat"
+                    type="number"
+                    min="-90"
+                    max="90"
+                    step="any"
+                    placeholder="6.5244"
+                    required
+                  />
+                </label>
+                <label>
+                  Longitude
+                  <input
+                    id="lon"
+                    type="number"
+                    min="-180"
+                    max="180"
+                    step="any"
+                    placeholder="3.3792"
+                    required
+                  />
+                </label>
+              </div>
+
+              <label>
+                Location label
+                <input
+                  id="label"
+                  type="text"
+                  maxlength="160"
+                  placeholder="City e.g. Lagos, Nigeria"
+                  required
+                />
+              </label>
+
+              <div>
+                <h3>Alert types</h3>
+                <div class="alert-grid" id="alertTypes"></div>
+              </div>
+
+              <div class="button-row">
+                <button type="submit">Create subscription</button>
+                <button class="secondary" id="previewWeather" type="button">
+                  Preview forecast
+                </button>
+              </div>
+              <div class="status" id="subscriptionStatus"></div>
+            </form>
+          </section>
+        </div>
+
+        <aside class="stack">
+          <section>
+            <div class="section-head">
+              <div>
+                <h2>API</h2>
+                <p class="section-note">Change this for deployed backends.</p>
+              </div>
+            </div>
+            <label>
+              Base URL
+              <input id="apiBaseUrl" type="url" value="http://localhost:3000" />
+            </label>
+          </section>
+
+          <section>
+            <div class="section-head">
+              <div>
+                <h2>Subscriptions</h2>
+                <p class="section-note" id="activeEmail">No email selected.</p>
+              </div>
+              <button class="secondary" id="refreshSubscriptions" type="button">
+                Refresh
+              </button>
+            </div>
+            <div class="status" id="listStatus"></div>
+            <div class="list" id="subscriptionsList"></div>
+          </section>
+
+          <section>
+            <div class="section-head">
+              <div>
+                <h2>Weather preview</h2>
+                <p class="section-note">Readable forecast for the coordinates.</p>
+              </div>
+            </div>
+            <div class="weather-panel" id="weatherOutput">
+              <p class="empty">No forecast loaded.</p>
+            </div>
+          </section>
+
+          <section>
+            <div class="section-head">
+              <div>
+                <h2>Alert history</h2>
+                <p class="section-note" id="selectedSubscription">
+                  Select a subscription to view alerts.
+                </p>
+              </div>
+            </div>
+            <div class="status" id="alertsStatus"></div>
+            <div class="alerts-panel" id="alertsOutput">
+              <p class="empty">No subscription selected.</p>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <script src="./index.js"></script>
+  </body>
+</html>

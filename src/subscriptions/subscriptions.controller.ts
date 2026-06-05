@@ -6,10 +6,12 @@ import {
   Param,
   Post,
   Body,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AdminApiKeyGuard } from '../common/admin-api-key.guard';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { FindSubscriptionsQueryDto } from './dto/find-subscriptions-query.dto';
 import { SubscriptionsService } from './subscriptions.service';
 
 @Controller('api/subscriptions')
@@ -25,6 +27,16 @@ export class SubscriptionsController {
   @UseGuards(AdminApiKeyGuard)
   findAll() {
     return this.subscriptionsService.findActive();
+  }
+
+  @Get('by-email')
+  findByEmail(@Query() query: FindSubscriptionsQueryDto) {
+    return this.subscriptionsService.findActiveByEmail(query.email);
+  }
+
+  @Get(':id/alerts')
+  findAlerts(@Param('id') id: string) {
+    return this.subscriptionsService.findAlerts(id);
   }
 
   @Get(':id')
