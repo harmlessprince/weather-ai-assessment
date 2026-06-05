@@ -1,17 +1,29 @@
 # WeatherAI Alert Subscription Service
 
-This project consumes WeatherAI forecast data, turns raw weather fields into actionable alert events, stores those events, and delivers or logs notifications for subscribed users.
+WeatherAI Alert Subscription Service is a small alerting system for farmers managing weather risk across multiple farms or plots. A farmer can subscribe an email address to different farm locations, choose the alert types that matter for each location, and review alerts tied back to the subscription that triggered them.
 
-The assessment brief asked for a simple implementation that integrates WeatherAI APIs and shows architectural approach, API consumption, and problem-solving velocity. I built the core as a small NestJS backend because the interesting part of the problem is not only calling `/v1/forecast`; it is deciding how to use a limited API budget safely, how to avoid duplicate alerts, and how to keep the notification layer replaceable when SMS/USSD is not available on the free plan.
+The backend integrates with WeatherAI forecast data, normalizes raw weather fields into alert signals, evaluates those signals against configurable rules, suppresses duplicate alerts, persists alert history, and delivers or logs notifications. The implementation is intentionally compact, but it shows the parts that matter for a real alerting workflow: API consumption, quota-aware polling, deduplication, durable records, and a delivery boundary that can later support stronger notification channels.
 
-I also included a lightweight client application for demo purposes. The client makes the use case easier to inspect: a farmer can save an email address, create subscriptions for multiple farms or plots, choose the alert types that matter for each location, manually trigger a poll for a subscription, and view alert history per farm. The UI is intentionally simple; it exists to make the backend workflow visible without requiring the reviewer to replay the whole journey through curl.
+I also included a lightweight client application for demo purposes. The UI is not the core of the assessment; it exists so you can experience the farmer workflow quickly without piecing the journey together from curl commands.
 
 ## Live Deployment
 
 - Client: https://taofeeq-weather-ai.netlify.app/
 - Backend API: https://weather-ai.taoforge.org
 
-## What This App Does
+## Demo Walkthrough
+
+The fastest way to evaluate the project is through the deployed client:
+
+1. Open the client and enter an email address for the farmer.
+2. Create subscriptions for one or more farms using labels and coordinates.
+3. Choose alert types per farm, such as heavy rain, frost, storm, heat, or wind.
+4. Trigger a manual poll for a subscription during the demo.
+5. View alert history for the selected farm subscription.
+
+The same workflow is available through the API examples below. The client is only a demo surface; the backend remains the source of truth for subscriptions, polling, alert evaluation, notification logging, and alert history.
+
+## Use Case Flow
 
 1. A farmer subscribes an email address to one or more farm locations.
 2. Each farm subscription can track its own alert types, such as heavy rain, frost, storm, heat, or wind.
@@ -33,81 +45,47 @@ Supported alert types:
 
 ## Why This Architecture
 
-WeatherAI's free plan has useful forecast access, but it does not include every production channel that a real last-mile alert product would use. The app is designed around those constraints instead of pretending they do not exist.
+The implementation focuses on the backend decisions that matter for this kind of product: using WeatherAI responsibly, keeping the alert engine independent from provider response shape, reducing noisy duplicate alerts, and making delivery replaceable.
 
-| Constraint | Decision |
+| Design concern | Decision |
 |---|---|
-| Free plan gives 1,000 API calls per month | Poll conservatively and cap demo subscriptions |
-| SMS/USSD alerts are not available on the free plan | Use email through a swappable `NotificationService` boundary |
-| AI insights and 14-day forecast are Pro+ features | Use `/v1/forecast` with `ai=false` and derive simple alert summaries locally |
-| Polling can rediscover the same bad weather window | Store alert fingerprints and apply a cooldown before dispatch |
+| WeatherAI quota is limited | Poll conservatively and cap demo subscriptions |
+| Provider data may change shape over time | Normalize forecast responses before alert evaluation |
+| Polling can rediscover the same bad weather window | Store alert fingerprints and apply cooldown windows |
+| Delivery channels may change | Keep email/logging behind a `NotificationService` boundary |
+| Demo should be easy to review | Provide a small client while keeping the backend as the core system |
 
-This keeps the demo honest: it uses the accessible WeatherAI API, respects quota, and still models the same backend workflow a production alert service would need.
+This keeps the demo honest: it uses the accessible WeatherAI API, respects free-tier constraints, and still models the backend workflow a production alert service would need.
 
-## API Call Budget Math
+## Quota Strategy
 
-The active plan budget assumed for this assessment is:
+The assessment assumes a WeatherAI budget of about `1,000` calls per month, or roughly `33` calls per day. This app makes one forecast call per subscribed location during each poll cycle.
 
-```text
-1,000 WeatherAI calls / month
-1,000 / 30 days = about 33 calls / day
-```
-
-This implementation makes one WeatherAI forecast call per subscribed location during each poll cycle.
-
-| Poll interval | Calls per day per location | Calls per month per location | Notes |
-|---|---:|---:|---|
-| Every 2 hours | 12 | 360 | Works for 1 location, risky for a demo with manual testing |
-| Every 6 hours | 4 | 120 | Default; leaves room for multiple locations and curl tests |
-| Every 12 hours | 2 | 60 | Very conservative, less responsive |
-
-Default settings:
-
-```text
-POLL_INTERVAL_MINUTES=360
-MAX_DEMO_SUBSCRIPTIONS=3
-```
-
-Worst-case default scheduled usage:
-
-```text
-3 subscriptions * 4 calls/day * 30 days = 360 calls/month
-```
-
-That leaves roughly `640` calls/month for manual testing, failed retries, deployment checks, and reviewer exploration.
+The default demo settings are conservative: `POLL_INTERVAL_MINUTES=360` and `MAX_DEMO_SUBSCRIPTIONS=3`. At that setting, scheduled polling uses about `360` forecast calls per month, leaving room for manual testing, retries, deployment checks, and hands-on exploration.
 
 ## Request Flow
 
 ```text
 POST /api/subscriptions
-  -> SubscriptionsService validates and stores the subscription
+  -> validates and stores a farm alert subscription
 
-SchedulerService poll cycle
-  -> loads active subscriptions
+POST /api/subscriptions/:id/poll or scheduled poll
   -> WeatherService calls WeatherAI /v1/forecast with ai=false
-  -> weather-normalizer converts raw forecast into alert signals
-  -> AlertEvaluatorService checks thresholds and suppresses duplicates
-  -> NotificationService sends email or logs the email payload
-  -> WeatherAlert record is saved in SQLite
+  -> forecast data is normalized into alert signals
+  -> alert rules create or suppress alert candidates
+  -> NotificationService sends email or logs the demo notification
+  -> WeatherAlert history is saved in SQLite
+
+GET /api/subscriptions/:id/alerts
+  -> returns alert history for one farm subscription
 
 GET /api/alerts
-  -> admin-only endpoint to inspect alert history
+  -> admin-only alert history lookup
 ```
 
 ## Client Application
 
-The `client/` folder contains a small static demo app. It is not required for the backend to run, but it helps show the product experience around the API:
-
-- Save the farmer's email address for lookup.
-- Create separate weather alert subscriptions for different farms or plots.
-- Choose relevant alert types per farm.
-- Preview current/forecast weather for a coordinate.
-- Trigger a manual poll for one subscription during the demo.
-- View alert history tied to the selected subscription.
-
-This keeps the UI useful without turning the assessment into a frontend-heavy project. The backend remains the source of truth; the client simply makes the subscription and alert workflow visible.
-
-For local demos, start the API and open `client/index.html` in a browser. The client defaults to `http://localhost:3000` locally and to the deployed backend when served from the Netlify demo host. The API base URL can also be edited inside the UI.
+The `client/` folder contains the static demo app used by the deployed client. For local demos, start the API and open `client/index.html` in a browser. The client defaults to `http://localhost:3000` locally and to the deployed backend when served from the Netlify demo host. The API base URL can also be edited inside the UI.
 
 ## Environment Variables
 
@@ -246,7 +224,7 @@ curl "$BASE_URL/api/weather/forecast?lat=-1.286&lon=36.817&days=3"
 curl -X POST "$BASE_URL/api/subscriptions" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "reviewer@example.com",
+    "email": "farmer@example.com",
     "location": {
       "label": "Nairobi CBD",
       "lat": -1.286,
@@ -296,7 +274,7 @@ curl "$BASE_URL/api/alerts" \
 Filter by email:
 
 ```bash
-curl "$BASE_URL/api/alerts?email=reviewer@example.com" \
+curl "$BASE_URL/api/alerts?email=farmer@example.com" \
   -H "x-admin-api-key: $ADMIN_API_KEY"
 ```
 
