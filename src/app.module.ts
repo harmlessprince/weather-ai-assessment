@@ -4,6 +4,7 @@ import { AlertsModule } from './alerts';
 import { AppController } from './app.controller';
 import { AppConfigModule } from './config';
 import { typeOrmAsyncConfig } from './database';
+import { SchedulerModule } from './scheduler';
 import { AppService } from './app.service';
 import { SubscriptionsModule } from './subscriptions';
 import { WeatherModule } from './weather';
@@ -15,6 +16,7 @@ import { WeatherModule } from './weather';
     SubscriptionsModule,
     AlertsModule,
     WeatherModule,
+    SchedulerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
