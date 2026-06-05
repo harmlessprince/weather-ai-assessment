@@ -519,6 +519,7 @@ function renderForecast(forecast) {
   const current = forecast.current || {};
   const location = forecast.location || {};
   const daily = Array.isArray(forecast.daily) ? forecast.daily.slice(0, 3) : [];
+  const summary = weatherSummary(forecast, current);
   const locationText = [
     location.country,
     location.timezone,
@@ -532,6 +533,7 @@ function renderForecast(forecast) {
       <h3>${locationText ? escapeHtml(locationText) : 'Forecast preview'}</h3>
       <p class="meta">${current.time ? `Updated ${formatDate(current.time)}` : 'Current weather details'}</p>
     </div>
+    ${summary ? weatherSummaryBlock(summary) : ''}
     <div class="metric-grid">
       ${weatherMetric('Temperature', formatUnit(current.temperature, '°C'))}
       ${weatherMetric('Feels like', formatUnit(current.feels_like, '°C'))}
@@ -554,12 +556,7 @@ function renderForecast(forecast) {
 function renderCurrentWeather(weather, coordinates) {
   const current = weather.current || weather.weather || weather;
   const location = weather.location || {};
-  const summary =
-    weather.summary ||
-    weather.ai_summary ||
-    weather.aiSummary ||
-    current.summary ||
-    current.ai_summary;
+  const summary = weatherSummary(weather, current);
   const locationText = [
     location.country,
     location.timezone,
@@ -573,11 +570,7 @@ function renderCurrentWeather(weather, coordinates) {
       <h3>${locationText ? escapeHtml(locationText) : 'Current weather'}</h3>
       <p class="meta">${current.time ? `Updated ${formatDate(current.time)}` : 'Live conditions for the entered coordinates'}</p>
     </div>
-    ${
-      summary
-        ? `<p class="weather-summary">${escapeHtml(summary)}</p>`
-        : ''
-    }
+    ${summary ? weatherSummaryBlock(summary) : ''}
     <div class="metric-grid">
       ${weatherMetric('Temperature', formatUnit(firstValue(current.temperature, current.temp), '°C'))}
       ${weatherMetric('Feels like', formatUnit(firstValue(current.feels_like, current.feelsLike), '°C'))}
@@ -617,6 +610,42 @@ function weatherMetric(label, value) {
       <strong>${escapeHtml(value)}</strong>
     </div>
   `;
+}
+
+function weatherSummary(...sources) {
+  return firstText(
+    ...sources.map(aiSummaryFields),
+    ...sources.map(summaryFields),
+  );
+}
+
+function aiSummaryFields(source) {
+  return firstText(
+    source?.ai_summary,
+    source?.aiSummary,
+    source?.ai?.summary,
+    source?.ai?.text,
+    source?.ai?.message,
+    source?.gemini_summary,
+    source?.geminiSummary,
+    source?.generated_summary,
+    source?.generatedSummary,
+    source?.insights?.summary,
+    source?.insights?.overview,
+  );
+}
+
+function summaryFields(source) {
+  return firstText(
+    source?.summary,
+    source?.weather_summary,
+    source?.weatherSummary,
+    source?.description,
+  );
+}
+
+function weatherSummaryBlock(summary) {
+  return `<p class="weather-summary">${escapeHtml(summary)}</p>`;
 }
 
 async function loadSubscriptionAlerts(id, label) {
@@ -832,6 +861,12 @@ function firstValue(...values) {
   return values.find(
     (value) => value !== null && value !== undefined && value !== '',
   );
+}
+
+function firstText(...values) {
+  const value = firstValue(...values);
+
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 
 function coordinatePair(lat, lon) {
