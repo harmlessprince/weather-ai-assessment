@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Body,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AdminApiKeyGuard } from '../common/admin-api-key.guard';
@@ -29,9 +28,10 @@ export class SubscriptionsController {
     return this.subscriptionsService.findActive();
   }
 
-  @Get('by-email')
-  findByEmail(@Query() query: FindSubscriptionsQueryDto) {
-    return this.subscriptionsService.findActiveByEmail(query.email);
+  @Post('by-email')
+  @HttpCode(200)
+  findByEmail(@Body() dto: FindSubscriptionsQueryDto) {
+    return this.subscriptionsService.findActiveByEmail(dto.email);
   }
 
   @Get(':id/alerts')

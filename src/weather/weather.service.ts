@@ -96,6 +96,7 @@ export class WeatherService {
 
       return response.data;
     } catch (error) {
+      console.error(error);
       this.logger.warn(
         `WeatherAI request failed: ${this.describeHttpError(error)}`,
       );

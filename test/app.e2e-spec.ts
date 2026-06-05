@@ -75,7 +75,7 @@ describe('AppController (e2e)', () => {
       });
   });
 
-  it('/api/subscriptions/by-email (GET) returns active subscriptions by email', async () => {
+  it('/api/subscriptions/by-email (POST) returns active subscriptions by email', async () => {
     await subscriptionRepository.save([
       subscriptionRepository.create({
         email: 'demo@example.com',
@@ -104,8 +104,8 @@ describe('AppController (e2e)', () => {
     ]);
 
     return request(app.getHttpServer())
-      .get('/api/subscriptions/by-email')
-      .query({ email: 'DEMO@example.com' })
+      .post('/api/subscriptions/by-email')
+      .send({ email: 'DEMO@example.com' })
       .expect(200)
       .expect(({ body }) => {
         expect(body).toHaveLength(1);
@@ -119,10 +119,10 @@ describe('AppController (e2e)', () => {
       });
   });
 
-  it('/api/subscriptions/by-email (GET) validates email query', () => {
+  it('/api/subscriptions/by-email (POST) validates email body', () => {
     return request(app.getHttpServer())
-      .get('/api/subscriptions/by-email')
-      .query({ email: 'not-an-email' })
+      .post('/api/subscriptions/by-email')
+      .send({ email: 'not-an-email' })
       .expect(400);
   });
 

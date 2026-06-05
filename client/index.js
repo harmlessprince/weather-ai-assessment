@@ -39,6 +39,7 @@ const elements = {
   subscriptionsList: document.querySelector('#subscriptionsList'),
   listStatus: document.querySelector('#listStatus'),
   previewWeather: document.querySelector('#previewWeather'),
+  weatherStatus: document.querySelector('#weatherStatus'),
   weatherOutput: document.querySelector('#weatherOutput'),
   selectedSubscription: document.querySelector('#selectedSubscription'),
   alertsStatus: document.querySelector('#alertsStatus'),
@@ -240,9 +241,11 @@ async function loadSubscriptions() {
   showStatus(elements.listStatus, 'Loading subscriptions...', 'info');
 
   try {
-    const subscriptions = await apiFetch(
-      `/api/subscriptions/by-email?email=${encodeURIComponent(state.email)}`,
-    );
+    const subscriptions = await apiFetch('/api/subscriptions/by-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: state.email }),
+    });
     if (
       state.selectedSubscriptionId &&
       !subscriptions.some(
@@ -328,7 +331,7 @@ async function previewWeather() {
   const coordinateError = validateCoordinates();
 
   if (coordinateError) {
-    showStatus(elements.subscriptionStatus, coordinateError, 'error');
+    showStatus(elements.weatherStatus, coordinateError, 'error');
     return;
   }
 
@@ -336,6 +339,7 @@ async function previewWeather() {
   const lon = Number(elements.lon.value);
 
   elements.previewWeather.disabled = true;
+  showStatus(elements.weatherStatus, 'Loading forecast...', 'info');
   elements.weatherOutput.innerHTML = '<p class="empty">Loading forecast...</p>';
 
   try {
@@ -343,7 +347,9 @@ async function previewWeather() {
       `/api/weather/forecast?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&days=3`,
     );
     renderForecast(forecast);
+    showStatus(elements.weatherStatus, 'Forecast loaded.', 'success');
   } catch (error) {
+    showStatus(elements.weatherStatus, error.message, 'error');
     elements.weatherOutput.innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`;
   } finally {
     updatePreviewAvailability();

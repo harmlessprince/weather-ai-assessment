@@ -112,6 +112,8 @@ export class SchedulerService
 
           await this.subscriptionsService.markPolled(subscription, now);
         } catch (error) {
+          this.logger.error(error);
+          console.log(error);
           this.logger.warn(
             `Polling failed for subscription ${subscription.id}: ${this.describeError(
               error,
