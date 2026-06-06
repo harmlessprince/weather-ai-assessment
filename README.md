@@ -58,6 +58,18 @@ The implementation focuses on the backend decisions that matter for this kind of
 
 This keeps the demo honest: it uses the accessible WeatherAI API, respects free-tier constraints, and still models the backend workflow a production alert service would need.
 
+## Architecture Diagrams
+
+The diagrams below were generated from the Mermaid architecture definitions in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+### System Context
+
+![System context diagram showing the demo client, NestJS API, WeatherAI API, SMTP provider, SQLite database, and Docker runtime.](system-context.png)
+
+### Alert Polling Flow
+
+![Alert polling flow diagram showing manual or scheduled polling, forecast normalization, alert evaluation, notification dispatch, alert persistence, and subscription poll updates.](alert-polling-flow.png)
+
 ## Quota Strategy
 
 The assessment assumes a WeatherAI budget of about `1,000` calls per month, or roughly `33` calls per day. This app makes one forecast call per subscribed location during each poll cycle.
