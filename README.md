@@ -90,6 +90,61 @@ GET /api/alerts
   -> admin-only alert history lookup
 ```
 
+## Database Structure
+
+The database is intentionally small because the workflow only needs to remember two durable things: what each farmer wants monitored, and which alerts were produced from those monitoring runs. SQLite is enough for the assessment demo, while the entity boundaries still map cleanly to a production database later.
+
+### `subscriptions`
+
+The `subscriptions` entity represents a farmer's alert request for one farm location. I kept this as the root record because the same email address can care about different plots, and each plot may need its own coordinates, label, selected alert types, and polling state.
+
+There is a unique index across `email`, `latitude`, and `longitude` so the same farmer does not accidentally create duplicate subscriptions for the same location.
+
+| Column | Purpose |
+|---|---|
+| `id` | UUID primary key used by API routes, polling jobs, and alert history lookups. |
+| `email` | Farmer email address used as the subscriber identity and current notification target. |
+| `location_label` | Human-readable farm or place name shown in alerts and the client UI. |
+| `location_timezone` | Optional timezone from the provider or client context, kept for future local-time alert presentation. |
+| `location_country` | Optional country metadata for filtering, display, or later regional behavior. |
+| `latitude` | Farm latitude used for WeatherAI forecast requests. |
+| `longitude` | Farm longitude used for WeatherAI forecast requests. |
+| `alertTypes` | JSON array of enabled alert types for this farm, such as `heavy_rain`, `storm_alert`, or `high_wind`. |
+| `notificationChannel` | Delivery channel for the subscription. It is currently `email`, but stored explicitly so more channels can be added behind the notification boundary. |
+| `status` | Subscription lifecycle state. `active` records are pollable; `paused` records can be kept without being evaluated. |
+| `last_polled_at` | Timestamp of the most recent poll, useful for scheduler behavior and operational visibility. |
+| `created_at` | Timestamp created by TypeORM when the subscription is first stored. |
+| `updated_at` | Timestamp updated by TypeORM whenever the subscription changes. |
+
+### `weather_alerts`
+
+The `weather_alerts` entity is the durable history of alert decisions. It stores not just that an alert happened, but the signal window, threshold comparison, deduplication fingerprint, and notification outcome. That makes the alert feed explainable during review and gives the delivery layer a clear audit trail.
+
+Alerts belong to a subscription and are deleted when the subscription is deleted. A unique index across `subscription_id`, `alert_type`, and `fingerprint` prevents the same weather event from being stored repeatedly, while the `subscription_id`, `alert_type`, and `triggered_at` index keeps recent history lookups efficient.
+
+| Column | Purpose |
+|---|---|
+| `id` | UUID primary key for the stored alert event. |
+| `subscription_id` | Foreign key linking the alert back to the farm subscription that triggered it. |
+| `alert_type` | Alert category that matched, using the same values configured on subscriptions. |
+| `severity` | Normalized severity level (`info`, `watch`, `warning`, or `critical`) for sorting and presentation. |
+| `location_label` | Snapshot of the subscription label at alert time, so history remains readable even if the subscription changes later. |
+| `latitude` | Snapshot of the monitored latitude used for the forecast request. |
+| `longitude` | Snapshot of the monitored longitude used for the forecast request. |
+| `signal_source` | Indicates which normalized forecast signal produced the alert. |
+| `forecast_window_start` | Start time of the forecast window that matched the rule. |
+| `triggered_at` | Time the backend created the alert decision. |
+| `fingerprint` | Stable deduplication key for suppressing repeated alerts from the same weather window. |
+| `summary` | Human-readable alert message used by the API response and notification payload. |
+| `matched_value` | Weather value that crossed the rule threshold, such as rain amount, temperature, or wind speed. |
+| `threshold_value` | Configured threshold that the matched value was compared against. |
+| `payload` | Optional JSON payload with extra provider-neutral context for debugging or richer clients. |
+| `delivery_status` | Current delivery state: `pending`, `logged`, `sent`, or `failed`. |
+| `delivery_attempted_at` | Timestamp for the latest notification attempt. |
+| `delivered_at` | Timestamp set when delivery succeeds. |
+| `delivery_error` | Error details captured when notification delivery fails. |
+| `created_at` | Timestamp created by TypeORM when the alert record is stored. |
+
 ## Client Application
 
 The `client/` folder contains the static demo app used by the deployed client. For local demos, start the API and open `client/index.html` in a browser. The client defaults to `http://localhost:3000` locally and to the deployed backend when served from the Netlify demo host. The API base URL can also be edited inside the UI.
