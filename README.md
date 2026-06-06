@@ -6,6 +6,30 @@ The backend integrates with WeatherAI forecast data, normalizes raw weather fiel
 
 I also included a lightweight client application for demo purposes. The UI is not the core of the assessment; it exists so you can experience the farmer workflow quickly without piecing the journey together from curl commands.
 
+## Table of Contents
+
+- [Live Deployment](#live-deployment)
+- [Demo Walkthrough](#demo-walkthrough)
+- [Technology Stack](#technology-stack)
+- [Project Structure](#project-structure)
+- [Use Case Flow](#use-case-flow)
+- [Why This Architecture](#why-this-architecture)
+- [Architecture Diagrams](#architecture-diagrams)
+  - [System Context](#system-context)
+  - [Alert Polling Flow](#alert-polling-flow)
+- [Quota Strategy](#quota-strategy)
+- [Request Flow](#request-flow)
+- [Database Structure](#database-structure)
+  - [`subscriptions`](#subscriptions)
+  - [`weather_alerts`](#weather_alerts)
+- [Client Application](#client-application)
+- [Environment Variables](#environment-variables)
+- [Local Setup](#local-setup)
+- [Curl Examples](#curl-examples)
+- [Deployment Notes](#deployment-notes)
+- [Production Improvements](#production-improvements)
+- [Summary](#summary)
+
 ## Live Deployment
 
 - Client: https://taofeeq-weather-ai.netlify.app/
@@ -22,6 +46,37 @@ The fastest way to evaluate the project is through the deployed client:
 5. View alert history for the selected farm subscription.
 
 The same workflow is available through the API examples below. The client is only a demo surface; the backend remains the source of truth for subscriptions, polling, alert evaluation, notification logging, and alert history.
+
+## Technology Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Backend framework | NestJS, TypeScript | Modular HTTP API, services, dependency injection, validation, and scheduler wiring. |
+| HTTP client | `@nestjs/axios`, Axios, RxJS | Calls WeatherAI endpoints with centralized error handling. |
+| Persistence | SQLite, TypeORM | Stores farm subscriptions, alert history, delivery state, and polling timestamps. |
+| Scheduling | `@nestjs/schedule` | Runs optional interval-based background polling for active subscriptions. |
+| Validation/config | `class-validator`, `class-transformer`, Joi, `@nestjs/config` | Validates request DTOs and environment variables. |
+| Notifications | Nodemailer | Sends SMTP email when enabled, or logs notifications in demo mode. |
+| Demo client | HTML, CSS, vanilla JavaScript | Provides a lightweight browser UI for the farmer workflow. |
+| Testing | Jest, Supertest | Covers unit and end-to-end API behavior. |
+| Runtime/deployment | Node.js 22, Docker, Docker Compose | Runs the API locally or in a container with a durable SQLite volume. |
+
+## Project Structure
+
+```text
+src/
+  alerts/           Alert rules, alert history API, and WeatherAlert entity
+  common/           Shared guards, including admin API key protection
+  config/           Environment validation, app config, CORS, and database path helpers
+  database/         TypeORM setup and SQLite migrations
+  notifications/    Email/log delivery boundary
+  scheduler/        Scheduled and manual alert polling flow
+  subscriptions/    Farm subscription API, service, and Subscription entity
+  weather/          WeatherAI API client, DTOs, normalizer, and provider types
+client/             Static demo client
+data/               Local SQLite database files
+test/               End-to-end tests
+```
 
 ## Use Case Flow
 
